@@ -107,6 +107,12 @@ private:
   float dxyErr_ = std::numeric_limits<float>::max();
   float vxy_ = std::numeric_limits<float>::max();
   float ip3d_ = std::numeric_limits<float>::max();
+  float r9_ = std::numeric_limits<float>::max();
+  float fbrem_ = std::numeric_limits<float>::max();
+  float pt_ = -1.;
+  float ptErr_ = -1.;
+  int passModHeep_ = -1;
+  int passModHeepMask_ = -1;
   int passME_ = -1;
 };
 
@@ -175,6 +181,12 @@ void MergedLeptonIDConversionAnalyzer::beginJob() {
   tree_->Branch("dxyErr",&dxyErr_,"dxyErr/F");
   tree_->Branch("vxy",&vxy_,"vxy/F");
   tree_->Branch("ip3d",&ip3d_,"ip3d/F");
+  tree_->Branch("r9",&r9_,"r9/F");
+  tree_->Branch("fbrem",&fbrem_,"fbrem/F");
+  tree_->Branch("pt",&pt_,"pt/F");
+  tree_->Branch("ptErr",&ptErr_,"ptErr/F");
+  tree_->Branch("passModHeep",&passModHeep_,"passModHeep/I");
+  tree_->Branch("passModHeepMask",&passModHeepMask_,"passModHeepMask/I");
   tree_->Branch("passME",&passME_,"passME/I");
 
   auto createProbeHisto = [&,this] (const std::string& prefix) {
@@ -603,10 +615,11 @@ void MergedLeptonIDConversionAnalyzer::analyze(const edm::Event& iEvent, const e
           else
             histo1d_["mva_NoneEt2EB"]->Fill(mvascore, aWeight);
 
-          // int32_t bitmap = aEle->userInt("modifiedHeepElectronID");
-          // int32_t mask = 0x00000780; // = 0111 1000 0000 - 7th for trk iso, 8th for EM+HadD1 iso, 9th for dxy, 10 for missing inner hits
-          // int32_t pass = bitmap | mask;
-          // bool passMaskedId = pass==0x00000FFF; // HEEP ID has 12 cuts
+          int32_t bitmap = aEle->userInt("modifiedHeepElectronID");
+          int32_t mask = 0x00000780; // = 0111 1000 0000 - 7th for trk iso, 8th for EM+HadD1 iso, 9th for dxy, 10 for missing inner hits
+          int32_t pass = bitmap | mask;
+          bool passMaskedId = pass==0x00000FFF; // HEEP ID has 12 cuts
+          bool passModHeepId = aEle->electronID("modifiedHeepElectronID");
 
           const auto& orgGsfTrk = aEle->gsfTrack();
           const auto& addGsfTrk = (*addGsfTrkHandle)[aEle];
@@ -736,6 +749,12 @@ void MergedLeptonIDConversionAnalyzer::analyze(const edm::Event& iEvent, const e
                 dxyErr_ = aEle->gsfTrack()->dxyError(primaryVertex->position(),primaryVertex->covariance());
                 vxy_ = aEle->gsfTrack()->referencePoint().rho();
                 ip3d_ = ip3dConv.second.value();
+                r9_ = aEle->full5x5_r9();
+                fbrem_ = aEle->fbrem();
+                pt_ = aEle->gsfTrack()->pt();
+                ptErr_ = aEle->gsfTrack()->ptError();
+                passModHeep_ = static_cast<int>(passModHeepId);
+                passModHeepMask_ = static_cast<int>(passMaskedId);
                 passME_ = static_cast<int>(passMergedElectronID);
                 tree_->Fill();
               }

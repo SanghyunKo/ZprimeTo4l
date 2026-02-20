@@ -133,6 +133,10 @@ private:
   float wgt_ = 0.;
   float dxy_ = -1.;
   float dr_ = -1.;
+  float r9_ = -1.;
+  float fbrem_ = -1.;
+  float fbremSC_ = -1.;
+  int nbrem_ = -1;
   int passME_ = -1;
   int passModHeep_ = -1;
   int passTrig25_ = -1;
@@ -152,6 +156,10 @@ private:
   float Bcos_ = std::numeric_limits<float>::max();
   float Bchi2_ = std::numeric_limits<float>::max();
   float Bndof_ = -1.;
+  float Br9_ = -1.;
+  float Bfbrem_ = -1.;
+  float BfbremSC_ = -1.;
+  int Bnbrem_ = -1;
   int BpassME_ = -1;
   int BpassModHeep_ = -1;
   float ptK_ = -1.;
@@ -292,6 +300,10 @@ void MergedLeptonIDJpsiAnalyzer::beginJob() {
   tree_->Branch("wgt",&wgt_,"wgt/F");
   tree_->Branch("dxy",&dxy_,"dxy/F");
   tree_->Branch("dR",&dr_,"dR/F");
+  tree_->Branch("r9",&r9_,"r9/F");
+  tree_->Branch("fbrem",&fbrem_,"fbrem/F");
+  tree_->Branch("fbremSC",&fbremSC_,"fbremSC/F");
+  tree_->Branch("nbrem",&nbrem_,"nbrem/I");
   tree_->Branch("passME",&passME_,"passME/I");
   tree_->Branch("passModHeep",&passModHeep_,"passModHeep/I");
   tree_->Branch("passTrig25",&passTrig25_,"passTrig25/I");
@@ -311,6 +323,10 @@ void MergedLeptonIDJpsiAnalyzer::beginJob() {
   Btree_->Branch("cosAlpha2d",&Bcos_,"cosAlpha2d/F");
   Btree_->Branch("chi2",&Bchi2_,"chi2/F");
   Btree_->Branch("ndof",&Bndof_,"ndof/F");
+  Btree_->Branch("r9",&Br9_,"r9/F");
+  Btree_->Branch("fbrem",&Bfbrem_,"fbrem/F");
+  Btree_->Branch("fbremSC",&BfbremSC_,"fbremSC/F");
+  Btree_->Branch("nbrem",&Bnbrem_,"nbrem/I");
   Btree_->Branch("passME",&BpassME_,"passME/I");
   Btree_->Branch("passModHeep",&BpassModHeep_,"passModHeep/I");
   Btree_->Branch("ptK",&ptK_,"ptK/F");
@@ -977,6 +993,10 @@ void MergedLeptonIDJpsiAnalyzer::analyze(const edm::Event& iEvent, const edm::Ev
       wgt_ = aWeight;
       dxy_ = Jpsis.front().dielectronState.globalPosition().perp();
       dr_ = reco::deltaR(vec3P1.eta(),vec3P1.phi(),vec3P2.eta(),vec3P2.phi());
+      r9_ = aEle->full5x5_r9();
+      fbrem_ = aEle->fbrem();
+      fbremSC_ = aEle->superClusterFbrem();
+      nbrem_ = aEle->numberOfBrems();
       passME_ = static_cast<int>(passMergedElectronID);
       passModHeep_ = static_cast<int>(Jpsis.front().dielec.firstEle->electronID("modifiedHeepElectronID"));
       passTrig25_ = static_cast<int>(matchTrigObj(Jpsis.front().dielec.firstEle->p4(),trigObjs_doubleEle25));
@@ -1288,6 +1308,10 @@ void MergedLeptonIDJpsiAnalyzer::analyze(const edm::Event& iEvent, const edm::Ev
       Bcos_ = Bdecays.front().cosAlpha2d;
       Bchi2_ = Bdecays.front().BmesonChi2;
       Bndof_ = Bdecays.front().BmesonNdof;
+      Br9_ = aEle->full5x5_r9();
+      Bfbrem_ = aEle->fbrem();
+      BfbremSC_ = aEle->superClusterFbrem();
+      Bnbrem_ = aEle->numberOfBrems();
       BpassME_ = static_cast<int>(passMergedElectronID);
       BpassModHeep_ = static_cast<int>(passMaskedId);
       ptK_ = Bdecays.front().refitThirdTrk.globalMomentum().perp();

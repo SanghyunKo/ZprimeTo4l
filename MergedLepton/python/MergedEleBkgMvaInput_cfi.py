@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 mergedEleBkgMvaInput = cms.EDAnalyzer("MergedEleBkgMvaInput",
+  isMC = cms.bool(True),
   srcEle = cms.InputTag("slimmedElectrons"),
   srcGenPtc = cms.InputTag("prunedGenParticles"),
   srcPv = cms.InputTag("offlineSlimmedPrimaryVertices"),
@@ -29,12 +30,21 @@ mergedEleBkgMvaInput = cms.EDAnalyzer("MergedEleBkgMvaInput",
   beamSpot = cms.InputTag("offlineBeamSpot"),
   EBrecHits = cms.InputTag("reducedEgamma","reducedEBRecHits"),
   EErecHits = cms.InputTag("reducedEgamma","reducedEERecHits"),
-  ptThres = cms.double(20.),
+  ptThres = cms.double(70.), # 70
   ptThres2nd = cms.double(10.),
   drThres = cms.double(0.1),
   select0J = cms.bool(False),
   selectHT = cms.bool(False),
   maxHT = cms.double(70.),
+  triggerResults = cms.InputTag("TriggerResults","","HLT"),
+  triggerObjects = cms.InputTag("slimmedPatTrigger"),
+  trigList = cms.vstring(
+    # "HLT_DoubleEle25_CaloIdL_MW_v*"
+    "HLT_DoublePhoton70_v*"
+  ),
+  pileupSummary = cms.InputTag("slimmedAddPileupInfo"),
+  PUrwgt = cms.FileInPath("ZprimeTo4l/Analysis/data/puWeights20UL18.json"),
+  PUname = cms.string("Collisions18_UltraLegacy_goldenJSON"),
   posCalcLog = cms.PSet( T0_barl      = cms.double(7.4),
                          T0_endc      = cms.double(3.1),
                          T0_endcPresh = cms.double(1.2),

@@ -140,6 +140,15 @@ private:
   float antiCRpt2_ = -1.;
   float antiCReta2_ = std::numeric_limits<float>::max();
   float antiCRphi2_ = std::numeric_limits<float>::max();
+
+  // tree for the high-mass events
+  TTree* interestEvtTree_ = nullptr;
+  unsigned int runNo_ = 0;
+  unsigned int lumiNo_ = 0;
+  unsigned long long evtNo_ = 0;
+  float interestM4l_ = -1.;
+  float interestMee1_ = -1.;
+  float interestMee2_ = -1.;
 };
 
 MergedEleCRanalyzer::MergedEleCRanalyzer(const edm::ParameterSet& iConfig) :
@@ -257,9 +266,8 @@ void MergedEleCRanalyzer::beginJob() {
   histo1d_["N-1_HEEP_EE"] = fs->make<TH1D>("N-1_HEEP_EE","N-1 efficiency (HEEP EE)",16,-1.,15.);
   histo1d_["mva_HasTrkEB"] = fs->make<TH1D>("mva_HasTrkEB","MVA score",100,0.,1.);
   histo1d_["mva_bkgEt2EB"] = fs->make<TH1D>("mva_bkgEt2EB","MVA score",100,0.,1.);
-  histo1d_["cutflow_4E"] = fs->make<TH1D>("cutflow_4E","cutflow (4E)",10,0.,10.);
-  histo1d_["cutflow_3E"] = fs->make<TH1D>("cutflow_3E","cutflow (3E)",10,0.,10.);
-  histo1d_["cutflow_2E"] = fs->make<TH1D>("cutflow_2E","cutflow (2E)",10,0.,10.);
+  histo1d_["cutflow_3E"] = fs->make<TH1D>("cutflow_3E","cutflow (3E)",20,0.,20.);
+  histo1d_["cutflow_2E"] = fs->make<TH1D>("cutflow_2E","cutflow (2E)",20,0.,20.);
   histo1d_["nPV"] = fs->make<TH1D>("nPV","nPV",99,0.,99.);
   histo1d_["PUsummary"] = fs->make<TH1D>("PUsummary","PUsummary",99,0.,99.);
 
@@ -771,6 +779,14 @@ void MergedEleCRanalyzer::beginJob() {
   antiCRtree_->Branch("pt2",&antiCRpt2_,"pt2/F");
   antiCRtree_->Branch("eta2",&antiCReta2_,"eta2/F");
   antiCRtree_->Branch("phi2",&antiCRphi2_,"phi2/F");
+
+  interestEvtTree_ = fs->make<TTree>("evtTree","evtTree");
+  interestEvtTree_->Branch("runNo",&runNo_,"runNo/i");
+  interestEvtTree_->Branch("lumiNo",&lumiNo_,"lumiNo/i");
+  interestEvtTree_->Branch("evtNo",&evtNo_,"evtNo/l");
+  interestEvtTree_->Branch("m4l",&interestM4l_,"m4l/F");
+  interestEvtTree_->Branch("mee1",&interestMee1_,"mee1/F");
+  interestEvtTree_->Branch("mee2",&interestMee2_,"mee2/F");
 }
 
 void MergedEleCRanalyzer::endJob() {
@@ -834,6 +850,8 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   }
 
   histo1d_["totWeightedSum"]->Fill(0.5,aWeight);
+  histo1d_["cutflow_3E"]->Fill( 0.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 0.5, aWeight );
 
   if (selectZpT_ || selectHT_) {
     edm::Handle<LHEEventProduct> lheEventHandle;
@@ -895,10 +913,6 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   edm::Handle<edm::View<pat::TriggerObjectStandAlone>> trigObjHandle;
   iEvent.getByToken(triggerobjectsToken_, trigObjHandle);
 
-  histo1d_["cutflow_4E"]->Fill( 0.5, aWeight );
-  histo1d_["cutflow_3E"]->Fill( 0.5, aWeight );
-  histo1d_["cutflow_2E"]->Fill( 0.5, aWeight );
-
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjs;
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjsUnseeded;
 
@@ -945,8 +959,7 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if (nPassedFilters!=METfilterList_.size())
     return;
 
-  histo1d_["cutflow_4E"]->Fill( 1.5, aWeight );
-  histo1d_["cutflow_3E"]->Fill( 1.5, aWeight );
+  histo1d_["cutflow_3E"]->Fill( 1.5, aWeight ); // MET filters
   histo1d_["cutflow_2E"]->Fill( 1.5, aWeight );
 
   edm::Handle<edm::ValueMap<reco::GsfTrackRef>> addGsfTrkMap;
@@ -1059,8 +1072,14 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if (!accepted)
     return;
 
+  histo1d_["cutflow_3E"]->Fill( 2.5, aWeight ); // at least two HEEP electrons pt > thres
+  histo1d_["cutflow_2E"]->Fill( 2.5, aWeight );
+
   if (!nonHeepEles.empty())
     return;
+
+  histo1d_["cutflow_3E"]->Fill( 3.5, aWeight ); // no other electrons
+  histo1d_["cutflow_2E"]->Fill( 3.5, aWeight );
 
   edm::Handle<edm::View<pat::Muon>> muonHandle;
   iEvent.getByToken(srcMuon_, muonHandle);
@@ -1083,6 +1102,9 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if ( !highPtMuons.empty() || !highPtTrackerMuons.empty() )
     return;
 
+  histo1d_["cutflow_3E"]->Fill( 4.5, aWeight ); // no muons
+  histo1d_["cutflow_2E"]->Fill( 4.5, aWeight );
+
   bool trigMatched1 = false;
   bool trigMatched2 = false;
 
@@ -1098,6 +1120,9 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
 
   if ( !trigMatched1 || !trigMatched2 )
     return;
+
+  histo1d_["cutflow_3E"]->Fill( 5.5, aWeight ); // trigger matching
+  histo1d_["cutflow_2E"]->Fill( 5.5, aWeight );
 
   std::vector<pat::ElectronRef> CRMEs;
   std::vector<pat::ElectronRef> antiMEs;
@@ -1294,15 +1319,12 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   };
 
   switch (acceptEles.size()) {
-    case 4:
-      histo1d_["cutflow_4E"]->Fill( 2.5, aWeight );
-      if ( CRMEs.size()==0 )
-        histo1d_["cutflow_4E"]->Fill( 3.5, aWeight );
-      break;
     case 3:
-      histo1d_["cutflow_3E"]->Fill( 2.5, aWeight );
+      histo1d_["cutflow_3E"]->Fill( 6.5, aWeight ); // 3 HEEP electrons
 
       if ( CRMEs.size()==1 ) {
+        histo1d_["cutflow_3E"]->Fill( 7.5, aWeight ); // only one merged electrons
+
         std::vector<pat::ElectronRef> nonMEs;
 
         for (const auto& aEle : acceptEles) {
@@ -1347,6 +1369,8 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         const double mlll_mergedEleSmear = std::min((lvecCRME_smear+lvecNME1+lvecNME2).M(),2499.9);
 
         if ( mlll > 50. /*&& (mlll < 500. || isMC_) (unblinded)*/ ) {
+          histo1d_["cutflow_3E"]->Fill( 8.5, aWeight ); // SR
+
           histo1d_["3E_CRME_lll_invM"]->Fill(mlll,aWeight);
           histo1d_["3E_CRME_lll_invM_mergedEleScale"]->Fill(mlll_mergedEleScale,aWeight);
           histo1d_["3E_CRME_lll_invM_mergedEleSmear"]->Fill(mlll_mergedEleSmear,aWeight);
@@ -1589,13 +1613,11 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
 
       break;
     case 2:
-      histo1d_["cutflow_2E"]->Fill( 2.5, aWeight );
-      if ( CRMEs.size() > 0 )
-        histo1d_["cutflow_2E"]->Fill( 3.5, aWeight );
-      if ( CRMEs.size()==2 )
-        histo1d_["cutflow_2E"]->Fill( 4.5, aWeight );
+      histo1d_["cutflow_2E"]->Fill( 6.5, aWeight ); // two HEEP electrons
 
       if (CRMEs.size()==2) {
+        histo1d_["cutflow_2E"]->Fill( 7.5, aWeight ); // two merged electrons
+
         const double scale1 = systHelperEle_.mergedEleScale(CRMEs.at(0),isMC_);
         const double smear1 = systHelperEle_.mergedEleSmear(CRMEs.at(0),(*union5x5EnergyHandle)[CRMEs.at(0)],isMC_);
         const double scale2 = systHelperEle_.mergedEleScale(CRMEs.at(1),isMC_);
@@ -1614,6 +1636,8 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         const double mll_smear = std::min((lvecCRME1_smear+lvecCRME2_smear).M(),3499.9);
 
         if ( mll > 50. /*&& (mll < 500. || isMC_) (unblinded)*/ ) {
+          histo1d_["cutflow_2E"]->Fill( 8.5, aWeight ); // SR
+
           histo1d_["2E_CRME_ll_invM"]->Fill( mll, aWeight );
 
           SRinvM_ = mll;
@@ -1664,6 +1688,76 @@ void MergedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
           }
 
           SRtree_->Fill();
+
+          if ( mll > 1500. ) {
+            evtNo_ = iEvent.id().event();
+            runNo_ = iEvent.id().run();
+            lumiNo_ = iEvent.id().luminosityBlock();
+            interestM4l_ = mll;
+
+            auto fillMee = [&](const pat::ElectronRef& interestME) {
+              double mee = -1.;
+
+              if ( interestME->userInt("mvaMergedElectronCategories")==1 )
+                return mee;
+              else {
+                auto lvecME_e1 = math::PtEtaPhiMLorentzVector(interestME->gsfTrack()->ptMode(),
+                                                              interestME->gsfTrack()->etaMode(),
+                                                              interestME->gsfTrack()->phiMode(),
+                                                              0.);
+
+                auto lvecME_e2 = math::PtEtaPhiMLorentzVector();
+                const auto& addGsfTrk = (*addGsfTrkMap)[interestME];
+                const auto& addPackedCand = (*addPackedCandHandle)[interestME];
+
+                if (addGsfTrk.isNonnull()) {
+                  lvecME_e2 = math::PtEtaPhiMLorentzVector(addGsfTrk->ptMode(),
+                                                           addGsfTrk->etaMode(),
+                                                           addGsfTrk->phiMode(),
+                                                           0.);
+                } else {
+                  lvecME_e2 = math::PtEtaPhiMLorentzVector(addPackedCand->bestTrack()->pt(),
+                                                           addPackedCand->bestTrack()->eta(),
+                                                           addPackedCand->bestTrack()->phi(),
+                                                           0.);
+                }
+
+                mee = (lvecME_e1 + lvecME_e2).M();
+              }
+
+              return mee;
+            }; // lambda
+
+            interestMee1_ = fillMee(CRMEs.front());
+            interestMee2_ = fillMee(CRMEs.at(1));
+            interestEvtTree_->Fill();
+
+            std::cout << "interesting event" << std::endl;
+            std::cout << "mll: " << mll << std::endl;
+            std::cout << "interestMee1_: " << interestMee1_ << std::endl;
+            std::cout << "interestMee2_: " << interestMee2_ << std::endl;
+            std::cout << "E1 score: " << CRMEs.front()->userFloat("mvaMergedElectronValues") << std::endl;
+            std::cout << "E1 SC energy: " << CRMEs.front()->superCluster()->energy() << std::endl;
+            std::cout << "E1 SC corrEnergy: " << CRMEs.front()->superCluster()->correctedEnergy() << std::endl;
+            std::cout << "E1 SC corrEnUnc: " << CRMEs.front()->superCluster()->correctedEnergyUncertainty() << std::endl;
+            std::cout << "E1 track pMode: " << CRMEs.front()->gsfTrack()->pMode() << std::endl;
+            std::cout << "E1 track ptMode: " << CRMEs.front()->gsfTrack()->ptMode() << std::endl;
+            std::cout << "E1 track ptModeError: " << CRMEs.front()->gsfTrack()->ptModeError() << std::endl;
+            std::cout << "E1 E/p: " << CRMEs.front()->eSuperClusterOverP() << std::endl;
+            std::cout << "E1 dEtaInSeed: " << CRMEs.front()->deltaEtaSeedClusterTrackAtVtx() << std::endl;
+            std::cout << "E1 dPhiIn: " << CRMEs.front()->deltaPhiSuperClusterTrackAtVtx() << std::endl;
+            std::cout << "E2 score: " << CRMEs.at(1)->userFloat("mvaMergedElectronValues") << std::endl;
+            std::cout << "E2 SC energy: " << CRMEs.at(1)->superCluster()->energy() << std::endl;
+            std::cout << "E2 SC corrEnergy: " << CRMEs.at(1)->superCluster()->correctedEnergy() << std::endl;
+            std::cout << "E2 SC corrEnUnc: " << CRMEs.at(1)->superCluster()->correctedEnergyUncertainty() << std::endl;
+            std::cout << "E2 track pMode: " << CRMEs.at(1)->gsfTrack()->pMode() << std::endl;
+            std::cout << "E2 track ptMode: " << CRMEs.at(1)->gsfTrack()->ptMode() << std::endl;
+            std::cout << "E2 track ptModeError: " << CRMEs.at(1)->gsfTrack()->ptModeError() << std::endl;
+            std::cout << "E2 E/p: " << CRMEs.at(1)->eSuperClusterOverP() << std::endl;
+            std::cout << "E2 dEtaInSeed: " << CRMEs.at(1)->deltaEtaSeedClusterTrackAtVtx() << std::endl;
+            std::cout << "E2 dPhiIn: " << CRMEs.at(1)->deltaPhiSuperClusterTrackAtVtx() << std::endl;
+            std::cout << "------------------------------" << std::endl;
+          }
         }
 
         if ( mll > 50. /*&& mll < 500. (unblinded)*/ ) {

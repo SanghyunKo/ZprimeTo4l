@@ -2,6 +2,8 @@ import FWCore.ParameterSet.Config as cms
 
 resolvedEMuCRanalyzer = cms.EDAnalyzer("ResolvedEMuCRanalyzer",
   isMC = cms.bool(True),
+  requireExplicitSignalDecay = cms.bool(False),
+  signalDecayMode = cms.int32(0), # 0: none, 11: ee, 13: mumu
   generator = cms.InputTag("generator"),
   beamSpot = cms.InputTag("offlineBeamSpot"),
   triggerResults = cms.InputTag("TriggerResults","","HLT"),

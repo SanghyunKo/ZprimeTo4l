@@ -291,7 +291,7 @@ void ResolvedEleCRanalyzer::beginJob() {
   ffdr03FitResult_ = (static_cast<TH1D*>(FFdr03file_->Get("REFFhist")))->Fit(ffdr03_,"RS");
 
   histo1d_["totWeightedSum"] = fs->make<TH1D>("totWeightedSum","totWeightedSum",1,0.,1.);
-  histo1d_["cutflow_4E"] = fs->make<TH1D>("cutflow_4E","cutflow (4E)",10,0.,10.);
+  histo1d_["cutflow"] = fs->make<TH1D>("cutflow","cutflow (4E)",20,0.,20.);
 
   // 3P0F
   histo1d_["3P0F_P1_Et"] = fs->make<TH1D>("3P0F_P1_Et","3P0F Pass E1 E_{T};E_{T} [GeV];",200,0.,500.);
@@ -731,15 +731,13 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   }
 
   histo1d_["totWeightedSum"]->Fill(0.5,aWeight);
-  histo1d_["cutflow_4E"]->Fill(0.5,aWeight);
+  histo1d_["cutflow"]->Fill(0.5,aWeight);
 
   edm::Handle<edm::TriggerResults> trigResultHandle;
   iEvent.getByToken(triggerToken_,trigResultHandle);
 
   edm::Handle<edm::View<pat::TriggerObjectStandAlone>> trigObjHandle;
   iEvent.getByToken(triggerobjectsToken_, trigObjHandle);
-
-  histo1d_["cutflow_4E"]->Fill(1.5,aWeight);
 
   edm::Handle<edm::TriggerResults> METfilterHandle;
   iEvent.getByToken(METfilterToken_,METfilterHandle);
@@ -761,7 +759,7 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if (nPassedFilters!=METfilterList_.size())
     return;
 
-  histo1d_["cutflow_4E"]->Fill(2.5,aWeight);
+  histo1d_["cutflow"]->Fill(1.5,aWeight); // MET filter
 
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjs;
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjsUnseeded;
@@ -842,8 +840,6 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   std::sort(acceptEles.begin(),acceptEles.end(),sortByEt);
   std::sort(nonHeepEles.begin(),nonHeepEles.end(),sortByEt);
 
-  histo1d_["cutflow_4E"]->Fill(3.5,aWeight);
-
   bool accepted = false;
 
   if ( acceptEles.size() > 1 ) {
@@ -853,6 +849,8 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
 
   if (!accepted)
     return;
+
+  histo1d_["cutflow"]->Fill( 2.5, aWeight ); // at least two HEEP electrons Pt > thres
 
   edm::Handle<edm::View<pat::Muon>> muonHandle;
   iEvent.getByToken(srcMuon_, muonHandle);
@@ -875,7 +873,7 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if ( !highPtMuons.empty() || !highPtTrackerMuons.empty() )
     return;
 
-  histo1d_["cutflow_4E"]->Fill(4.5,aWeight);
+  histo1d_["cutflow"]->Fill(3.5,aWeight); // no muons
 
   bool trigMatched1 = false;
   bool trigMatched2 = false;
@@ -893,6 +891,8 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if ( !trigMatched1 || !trigMatched2 )
     return;
 
+  histo1d_["cutflow"]->Fill( 4.5, aWeight ); // trigger matching
+
   // SF
   if (isMC_) {
     aWeight *= systHelperEle_.GetTrigSF(acceptEles.front());
@@ -906,11 +906,6 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
     for (const auto& aEle : nonHeepEles)
       aWeight *= systHelperEle_.GetRecoSF(aEle);
   }
-
-  histo1d_["cutflow_4E"]->Fill(5.5,aWeight);
-
-  if ( acceptEles.size()==4 )
-    histo1d_["cutflow_4E"]->Fill(6.5,aWeight);
 
   auto modHeepSFcl95 = [this,&acceptEles] (const double wgt) -> std::pair<double,double> {
     if (!isMC_)
@@ -993,7 +988,7 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   switch (acceptEles.size()) {
     case 4:
       // 4P0F
-      histo1d_["cutflow_4E"]->Fill(7.5,aWeight);
+      histo1d_["cutflow"]->Fill(5.5,aWeight); // 4 HEEP electrons
 
       if (true) {
         std::vector<pat::ElectronRef> allEles(acceptEles);
@@ -1002,7 +997,7 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
         bool paired = PairingHelper::pair4E(allEles,addGsfTrkMap,pair1,pair2);
 
         if (paired) {
-          histo1d_["cutflow_4E"]->Fill(8.5,aWeight);
+          histo1d_["cutflow"]->Fill(6.5,aWeight); // pairing
 
           auto lvecCorr = [] (const pat::ElectronRef& aEle, const std::string& opt) {
             return aEle->polarP4()*aEle->userFloat(opt)/aEle->energy();
@@ -1043,7 +1038,7 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
           const double m4l_sigmaDn = std::min((lvecE1_sigmaDn+lvecE2_sigmaDn+lvecE3_sigmaDn+lvecE4_sigmaDn).M(),2499.9);
 
           if ( m4l > 50. /*&& (m4l < 500. || isMC_) (unblinded)*/ && lvecA1.M() > 1. && lvecA2.M() > 1. ) {
-            histo1d_["cutflow_4E"]->Fill(9.5,aWeight);
+            histo1d_["cutflow"]->Fill(7.5,aWeight); // SR
 
             histo1d_["4P0F_CR_llll_invM"]->Fill(m4l, aWeight);
             histo1d_["4P0F_CR_llll_invM_scaleUp"]->Fill(m4l_scaleUp, aWeight);
@@ -1065,8 +1060,6 @@ void ResolvedEleCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
           }
 
           if ( m4l > 50. /*&& m4l < 500. (unblinded)*/ && lvecA1.M() > 1. && lvecA2.M() > 1. ) {
-            histo1d_["cutflow_4E"]->Fill(10.5,aWeight);
-
             histo1d_["4P0F_CR_P1_eta"]->Fill(acceptEles.front()->eta(), aWeight);
             histo1d_["4P0F_CR_P1_phi"]->Fill(acceptEles.front()->phi(), aWeight);
             histo1d_["4P0F_CR_P2_eta"]->Fill(acceptEles.at(1)->eta(), aWeight);

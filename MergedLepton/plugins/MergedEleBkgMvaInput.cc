@@ -21,6 +21,13 @@
 #include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 #include "SimDataFormats/GeneratorProducts/interface/LHEEventProduct.h"
 
+#include "FWCore/Common/interface/TriggerNames.h"
+#include "DataFormats/Common/interface/TriggerResults.h"
+#include "DataFormats/PatCandidates/interface/TriggerObjectStandAlone.h"
+
+#include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
+#include "correction.h"
+
 #include "ZprimeTo4l/MergedLepton/interface/MergedLeptonHelper.h"
 
 // produce TTree for merged electron training with bkg MC (QCD, WJets, DY, TT)
@@ -62,9 +69,13 @@ private:
   const edm::EDGetTokenT<EcalRecHitCollection> EErecHitToken_;
   const edm::EDGetTokenT<GenEventInfoProduct> generatorToken_;
   const edm::EDGetTokenT<LHEEventProduct> lheToken_;
+  const edm::EDGetTokenT<edm::TriggerResults> triggerToken_;
+  const edm::EDGetTokenT<edm::View<pat::TriggerObjectStandAlone>> triggerobjectsToken_;
+  const edm::EDGetTokenT<edm::View<PileupSummaryInfo>> pileupToken_;
   // Ecal position calculation algorithm
   PositionCalc posCalcLog_;
 
+  const bool isMC_;
   const double ptThres_;
   const double ptThres2nd_;
   const double drThres_;
@@ -72,6 +83,10 @@ private:
   const bool select0J_;
   const bool selectHT_;
   const double maxHT_;
+  const std::vector<std::string> trigList_;
+
+  std::unique_ptr<correction::CorrectionSet> purwgt_;
+  const std::string puname_;
 
   MergedLeptonHelper aHelper_;
 
@@ -106,7 +121,11 @@ MergedEleBkgMvaInput::MergedEleBkgMvaInput(const edm::ParameterSet& iConfig)
   EErecHitToken_(consumes<EcalRecHitCollection>(iConfig.getParameter<edm::InputTag>("EErecHits"))),
   generatorToken_(consumes<GenEventInfoProduct>(iConfig.getParameter<edm::InputTag>("generator"))),
   lheToken_(consumes<LHEEventProduct>(iConfig.getParameter<edm::InputTag>("lheEvent"))),
+  triggerToken_(consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("triggerResults"))),
+  triggerobjectsToken_(consumes<edm::View<pat::TriggerObjectStandAlone>>(iConfig.getParameter<edm::InputTag>("triggerObjects"))),
+  pileupToken_(consumes<edm::View<PileupSummaryInfo>>(iConfig.getParameter<edm::InputTag>("pileupSummary"))),
   posCalcLog_(PositionCalc(iConfig.getParameter<edm::ParameterSet>("posCalcLog"))),
+  isMC_(iConfig.getParameter<bool>("isMC")),
   ptThres_(iConfig.getParameter<double>("ptThres")),
   ptThres2nd_(iConfig.getParameter<double>("ptThres2nd")),
   drThres_(iConfig.getParameter<double>("drThres")),
@@ -114,6 +133,9 @@ MergedEleBkgMvaInput::MergedEleBkgMvaInput(const edm::ParameterSet& iConfig)
   select0J_(iConfig.getParameter<bool>("select0J")),
   selectHT_(iConfig.getParameter<bool>("selectHT")),
   maxHT_(iConfig.getParameter<double>("maxHT")),
+  trigList_(iConfig.getParameter<std::vector<std::string>>("trigList")),
+  purwgt_(std::move(correction::CorrectionSet::from_file((iConfig.getParameter<edm::FileInPath>("PUrwgt")).fullPath()))),
+  puname_(iConfig.getParameter<std::string>("PUname")),
   aHelper_() {
   usesResource("TFileService");
 }
@@ -123,6 +145,7 @@ void MergedEleBkgMvaInput::beginJob() {
   edm::Service<TFileService> fs;
   aHelper_.SetFileService(&fs);
   histo1d_["totWeightedSum"] = fs->make<TH1D>("totWeightedSum","totWeightedSum",1,0.,1.);
+  histo1d_["invM"] = fs->make<TH1D>("invM","invM",500,0.,500.);
   histo1d_["lheNj"] = fs->make<TH1D>("lheNj","lheNj",5,0.,5.);
   histo1d_["lheNj_cut"] = fs->make<TH1D>("lheNj_cut","lheNj",5,0.,5.);
   histo1d_["lheHT"] = fs->make<TH1D>("lheHT","lheHT",400,0.,4000.);
@@ -138,9 +161,6 @@ void MergedEleBkgMvaInput::beginJob() {
 void MergedEleBkgMvaInput::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   edm::Handle<edm::View<pat::Electron>> eleHandle;
   iEvent.getByToken(srcEle_, eleHandle);
-
-  edm::Handle<edm::View<reco::GenParticle>> genptcHandle;
-  iEvent.getByToken(srcGenPtc_, genptcHandle);
 
   edm::Handle<edm::View<reco::Vertex>> pvHandle;
   iEvent.getByToken(pvToken_, pvHandle);
@@ -202,63 +222,89 @@ void MergedEleBkgMvaInput::analyze(const edm::Event& iEvent, const edm::EventSet
   edm::Handle<EcalRecHitCollection> EErecHitHandle;
   iEvent.getByToken(EErecHitToken_, EErecHitHandle);
 
-  edm::Handle<GenEventInfoProduct> genInfo;
-  iEvent.getByToken(generatorToken_, genInfo);
-  double mcweight = genInfo->weight();
+  // default weight is 1 (for data)
+  double aWeight = 1.;
+  aHelper_.SetMCweight(aWeight);
+  std::vector<reco::GenParticleRef> promptLeptons;
 
-  double aWeight = mcweight/std::abs(mcweight);
-  histo1d_["totWeightedSum"]->Fill(0.5,aWeight);
-  aHelper_.SetMCweight(mcweight);
+  if (isMC_) {
+    edm::Handle<edm::View<reco::GenParticle>> genptcHandle;
+    iEvent.getByToken(srcGenPtc_, genptcHandle);
 
-  if (select0J_ || selectHT_) {
-    edm::Handle<LHEEventProduct> lheEventHandle;
-    iEvent.getByToken(lheToken_, lheEventHandle);
+    edm::Handle<GenEventInfoProduct> genInfo;
+    iEvent.getByToken(generatorToken_, genInfo);
+    double mcweight = genInfo->weight();
 
-    const auto& hepeup = lheEventHandle->hepeup();
-    const auto& pup = hepeup.PUP;
-    unsigned int lheNj = 0;
-    double lheHT = 0.;
+    aWeight = mcweight/std::abs(mcweight);
 
-    for (unsigned int i = 0, n = pup.size(); i < n; ++i) {
-      int status = hepeup.ISTUP[i];
-      int idabs = std::abs(hepeup.IDUP[i]);
+    edm::Handle<edm::View<PileupSummaryInfo>> pusummary;
+    iEvent.getByToken(pileupToken_, pusummary);
 
-      if ((status == 1) && ((idabs == 21) || (idabs > 0 && idabs < 7))) { //# gluons and quarks
-        lheNj++;
+    for (unsigned int idx = 0; idx < pusummary->size(); ++idx) {
+      const auto& apu = pusummary->refAt(idx);
 
-        double pt = std::hypot(pup[i][0], pup[i][1]);  // first entry is px, second py
-        lheHT += pt;
+      int bx = apu->getBunchCrossing();
+
+      if (bx==0) { // in-time PU only
+        double purwgtNo = purwgt_->at(puname_)->evaluate({apu->getTrueNumInteractions(),"nominal"});
+
+        aWeight *= purwgtNo;
+
+        break;
       }
     }
 
-    histo1d_["lheNj"]->Fill( static_cast<float>(lheNj)+0.5 );
-    histo1d_["lheHT"]->Fill( lheHT );
+    histo1d_["totWeightedSum"]->Fill(0.5,aWeight);
+    aHelper_.SetMCweight(aWeight);
 
-    if (select0J_) {
-      if (lheNj > 0)
-        return;
+    if (select0J_ || selectHT_) {
+      edm::Handle<LHEEventProduct> lheEventHandle;
+      iEvent.getByToken(lheToken_, lheEventHandle);
+
+      const auto& hepeup = lheEventHandle->hepeup();
+      const auto& pup = hepeup.PUP;
+      unsigned int lheNj = 0;
+      double lheHT = 0.;
+
+      for (unsigned int i = 0, n = pup.size(); i < n; ++i) {
+        int status = hepeup.ISTUP[i];
+        int idabs = std::abs(hepeup.IDUP[i]);
+
+        if ((status == 1) && ((idabs == 21) || (idabs > 0 && idabs < 7))) { //# gluons and quarks
+          lheNj++;
+
+          double pt = std::hypot(pup[i][0], pup[i][1]);  // first entry is px, second py
+          lheHT += pt;
+        }
+      }
+
+      histo1d_["lheNj"]->Fill( static_cast<float>(lheNj)+0.5 );
+      histo1d_["lheHT"]->Fill( lheHT );
+
+      if (select0J_) {
+        if (lheNj > 0)
+          return;
+      }
+
+      histo1d_["lheNj_cut"]->Fill( static_cast<float>(lheNj)+0.5 );
+
+      if (selectHT_) {
+        if (lheHT > maxHT_)
+          return;
+      }
+
+      histo1d_["lheHT_cut"]->Fill( lheHT );
     }
 
-    histo1d_["lheNj_cut"]->Fill( static_cast<float>(lheNj)+0.5 );
+    for (unsigned int idx = 0; idx < genptcHandle->size(); ++idx) {
+      const auto& genptc = genptcHandle->refAt(idx);
 
-    if (selectHT_) {
-      if (lheHT > maxHT_)
-        return;
+      if ( ( std::abs(genptc->pdgId())==11 ) &&
+           genptc->fromHardProcessFinalState() &&
+           ( std::abs(genptc->eta()) < 2.5 ) )
+        promptLeptons.push_back(genptc.castTo<reco::GenParticleRef>());
     }
-
-    histo1d_["lheHT_cut"]->Fill( lheHT );
-  }
-
-  std::vector<reco::GenParticleRef> promptLeptons;
-
-  for (unsigned int idx = 0; idx < genptcHandle->size(); ++idx) {
-    const auto& genptc = genptcHandle->refAt(idx);
-
-    if ( ( std::abs(genptc->pdgId())==11 ) &&
-         genptc->fromHardProcessFinalState() &&
-         ( std::abs(genptc->eta()) < 2.5 ) )
-      promptLeptons.push_back(genptc.castTo<reco::GenParticleRef>());
-  }
+  } // isMC
 
   reco::VertexRef primaryVertex;
 
@@ -270,12 +316,70 @@ void MergedEleBkgMvaInput::analyze(const edm::Event& iEvent, const edm::EventSet
 
   aHelper_.SetBS(beamSpotHandle.product());
 
+  // trigger
+  edm::Handle<edm::TriggerResults> trigResultHandle;
+  iEvent.getByToken(triggerToken_,trigResultHandle);
+
+  edm::Handle<edm::View<pat::TriggerObjectStandAlone>> trigObjHandle;
+  iEvent.getByToken(triggerobjectsToken_, trigObjHandle);
+
+  const unsigned int nTrig = trigResultHandle.product()->size();
+  const edm::TriggerNames trigList = iEvent.triggerNames(*trigResultHandle);
+
+  bool isFired = false;
+
+  for (unsigned int iTrig = 0; iTrig != nTrig; iTrig++) {
+    const std::string& trigName = trigList.triggerName(iTrig);
+    for (unsigned int jTrig = 0; jTrig != trigList_.size(); jTrig++) {
+      if (trigName.find(trigList_.at(jTrig).substr(0, trigList_.at(jTrig).find("*"))) != std::string::npos) {
+        if (trigResultHandle.product()->accept(iTrig))
+          isFired = true;
+      }
+    } // wanted triggers
+  } // fired triggers
+
+  std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjs;
+
+  for (unsigned iTrig=0; iTrig < trigObjHandle->size(); iTrig++) {
+    const auto& trigObj = trigObjHandle->refAt(iTrig);
+    auto trigObjInst = trigObjHandle->at(iTrig); // workaround for copy
+    trigObjInst.unpackPathNames(trigList);
+    const auto& pathNames = trigObjInst.pathNames();
+
+    for (const auto name : pathNames) {
+      for (unsigned int jTrig = 0; jTrig < trigList_.size(); jTrig++) {
+        if ( name.find(trigList_.at(jTrig).substr(0, trigList_.at(jTrig).find("*"))) != std::string::npos &&
+             trigObjInst.hasPathName(name,true,true) ) {
+          trigObjs.push_back(trigObj);
+        }
+      } // wanted triggers
+    } // fired triggers
+  } // trigger objs
+
+  if (!isFired)
+    return;
+
   std::vector<pat::ElectronRef> heepElectrons;
 
   for (unsigned idx = 0; idx < eleHandle->size(); ++idx) {
     const auto& aEle = eleHandle->refAt(idx);
 
     if ( !aEle->electronID("modifiedHeepElectronID") )
+      continue;
+
+    if ( aEle->et() < ptThres_ )
+      continue;
+
+    bool trigMatched = false;
+
+    for (const auto& trigObj : trigObjs) {
+      if ( reco::deltaR2(trigObj->eta(),trigObj->phi(),aEle->eta(),aEle->phi()) < 0.01 ) {
+        trigMatched = true;
+        break;
+      }
+    }
+
+    if (!trigMatched)
       continue;
 
     auto castEle = aEle.castTo<pat::ElectronRef>();
@@ -286,11 +390,21 @@ void MergedEleBkgMvaInput::analyze(const edm::Event& iEvent, const edm::EventSet
   if ( heepElectrons.size() < 2 )
     return;
 
+  auto sortByEt = [](const pat::ElectronRef& a, const pat::ElectronRef& b) {
+    return a->et() > b->et();
+  };
+
+  std::sort(heepElectrons.begin(),heepElectrons.end(),sortByEt);
+
+  const double invMee = (heepElectrons.front()->p4() + heepElectrons.at(1)->p4()).M();
+
+  histo1d_["invM"]->Fill(invMee,aWeight);
+
+  if ( invMee < 50. )
+    return;
+
   for (unsigned int idx = 0; idx < heepElectrons.size(); ++idx) {
     const auto& aEle = heepElectrons.at(idx);
-
-    if ( aEle->et() < ptThres_ )
-      continue;
 
     float genPt = -1.;
     float genE = -1.;

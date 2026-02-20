@@ -48,6 +48,8 @@ private:
   math::PtEtaPhiMLorentzVector lvecFromTuneP(const pat::MuonRef& aMu);
 
   bool isMC_;
+  bool requireExplicitSignalDecay_;
+  int signalDecayMode_;
 
   const edm::EDGetTokenT<edm::View<pat::Electron>> srcEle_;
   const edm::EDGetTokenT<edm::View<pat::Muon>> srcMuon_;
@@ -115,6 +117,8 @@ private:
 
 ResolvedEMuCRanalyzer::ResolvedEMuCRanalyzer(const edm::ParameterSet& iConfig) :
 isMC_(iConfig.getParameter<bool>("isMC")),
+requireExplicitSignalDecay_(iConfig.getParameter<bool>("requireExplicitSignalDecay")),
+signalDecayMode_(iConfig.getParameter<int>("signalDecayMode")),
 srcEle_(consumes<edm::View<pat::Electron>>(iConfig.getParameter<edm::InputTag>("srcEle"))),
 srcMuon_(consumes<edm::View<pat::Muon>>(iConfig.getParameter<edm::InputTag>("srcMuon"))),
 pvToken_(consumes<edm::View<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("srcPv"))),
@@ -193,7 +197,7 @@ void ResolvedEMuCRanalyzer::beginJob() {
   ffdr03FitResult_ = (static_cast<TH1D*>(FFdr03file_->Get("REFFhist")))->Fit(ffdr03_,"RS");
 
   histo1d_["totWeightedSum"] = fs->make<TH1D>("totWeightedSum","totWeightedSum",1,0.,1.);
-  histo1d_["cutflow"] = fs->make<TH1D>("cutflow","cutflow",10,0.,10.);
+  histo1d_["cutflow"] = fs->make<TH1D>("cutflow","cutflow",20,0.,20.);
   histo1d_["cutflow_trig"] = fs->make<TH1D>("cutflow_trig","cutflow",10,0.,10.);
 
   // 2P2F
@@ -477,6 +481,9 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
     edm::Handle<edm::View<reco::GenParticle>> genptcHandle;
     iEvent.getByToken(genptcToken_, genptcHandle);
 
+    std::vector<reco::GenParticleRef> signalBosons;
+    unsigned nEleDecay = 0, nMuDecay = 0;
+
     for (unsigned int idx = 0; idx < genptcHandle->size(); ++idx) {
       const auto& genptc = genptcHandle->refAt(idx);
 
@@ -485,6 +492,28 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
 
       if ( ( std::abs(genptc->pdgId())==13 ) && genptc->fromHardProcessFinalState() )
         promptMuons.push_back(genptc.castTo<reco::GenParticleRef>());
+
+      if ( ( std::abs(genptc->pdgId())==36 ) && genptc->isHardProcess() )
+        signalBosons.push_back(genptc.castTo<reco::GenParticleRef>());
+    }
+
+    for (const auto& genptc : signalBosons) {
+      if (genptc->numberOfDaughters()==2
+          && std::abs(genptc->daughter(0)->pdgId())==11
+          && std::abs(genptc->daughter(1)->pdgId())==11)
+        nEleDecay++;
+
+      if (genptc->numberOfDaughters()==2
+          && std::abs(genptc->daughter(0)->pdgId())==13
+          && std::abs(genptc->daughter(1)->pdgId())==13)
+        nMuDecay++;
+    }
+
+    if (requireExplicitSignalDecay_) {
+      if (signalDecayMode_==11 && nMuDecay>0)
+        return;
+      if (signalDecayMode_==13 && nEleDecay>0)
+        return;
     }
 
     if (promptEles.size()==2 && promptMuons.size()==2) {
@@ -534,6 +563,8 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if (!isFired)
     return;
 
+  histo1d_["cutflow"]->Fill( 1.5, aWeight ); // fired trigger
+
   edm::Handle<edm::TriggerResults> METfilterHandle;
   iEvent.getByToken(METfilterToken_,METfilterHandle);
   edm::TriggerNames METfilters = iEvent.triggerNames(*METfilterHandle);
@@ -553,6 +584,8 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
 
   if (nPassedFilters!=METfilterList_.size())
     return;
+
+  histo1d_["cutflow"]->Fill( 2.5, aWeight ); // MET filter
 
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjs;
 
@@ -576,8 +609,6 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
     return;
 
   const reco::Vertex* primaryVertex = pvHandle->ptrAt(0).get();
-
-  histo1d_["cutflow"]->Fill( 1.5, aWeight );
 
   std::vector<pat::ElectronRef> acceptEles;
   std::vector<pat::ElectronRef> nonHeepEles;
@@ -613,7 +644,7 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if (muonHandle->empty())
     return;
 
-  histo1d_["cutflow"]->Fill( 2.5, aWeight );
+  histo1d_["cutflow"]->Fill( 3.5, aWeight ); // has reco muons
 
   std::vector<pat::MuonRef> highPtMuons;
   std::vector<pat::MuonRef> highPtTrackerMuons; // but not highPtMuon
@@ -624,7 +655,8 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   for (unsigned int idx = 0; idx < muonHandle->size(); ++idx) {
     const auto& aMuon = muonHandle->refAt(idx);
 
-    if ( aMuon->tunePMuonBestTrack()->pt() < ptThres_ || std::abs(aMuon->eta()) > 2.4 )
+    if ( aMuon->tunePMuonBestTrack()->pt() < ptThres_ ||
+         std::abs(aMuon->tunePMuonBestTrack()->eta()) > 2.4 )
       continue;
 
     if ( muon::isHighPtMuon(*aMuon,*primaryVertex) )
@@ -655,7 +687,7 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if ( allHighPtMuons.empty() || allHighPtMuons.front()->tunePMuonBestTrack()->pt() < ptThresTrig_ )
     return;
 
-  histo1d_["cutflow"]->Fill( 3.5, aWeight );
+  histo1d_["cutflow"]->Fill( 4.5, aWeight ); // has at least one high-pt muon passing trig threshold
 
   bool trigMatched = false;
   std::vector<double> trigSyst;
@@ -691,7 +723,7 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if ( !trigMatched )
     return;
 
-  histo1d_["cutflow"]->Fill( 4.5, aWeight );
+  histo1d_["cutflow"]->Fill( 5.5, aWeight ); // trigger matching
 
   mucorrHelper_.nonHighPtMuonIso(nonHighPtMuons,
                                  nonHighPtMuonsVLiso,
@@ -841,6 +873,8 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
     case 4:
       // 4P0F
       if ( allHighPtMuons.size()==2 && acceptEles.size()==2 ) {
+        histo1d_["cutflow"]->Fill( 6.5, aWeight ); // 2 high-pt muons and 2 HEEP electrons
+
         auto lvecCorr = [] (const pat::ElectronRef& aEle, const std::string& opt) {
           return aEle->polarP4()*aEle->userFloat(opt)/aEle->energy();
         };
@@ -894,7 +928,11 @@ void ResolvedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
         auto muPair = std::make_pair(allHighPtMuons.front(),allHighPtMuons.at(1));
 
         if ( !checkTrackerMuPair(muPair) ) {
+          histo1d_["cutflow"]->Fill( 7.5, aWeight ); // pairing
+
           if ( m4l > 50. /*&& (m4l < 500. || isMC_) (unblinded)*/ && lvecA1.M() > 1. && lvecA2.M() > 1. ) {
+            histo1d_["cutflow"]->Fill( 8.5, aWeight ); // SR
+
             histo1d_["4P0F_CR_llll_invM"]->Fill(m4l, aWeight);
             histo1d_["4P0F_CR_llll_invM_elScaleUp"]->Fill(m4l_elScaleUp, aWeight);
             histo1d_["4P0F_CR_llll_invM_elScaleDn"]->Fill(m4l_elScaleDn, aWeight);

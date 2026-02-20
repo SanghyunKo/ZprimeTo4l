@@ -246,7 +246,7 @@ void ResolvedMuCRanalyzer::beginJob() {
   ffdr03FitResult_ = (static_cast<TH1D*>(FFdr03file_->Get("RMFFhist")))->Fit(ffdr03_,"RS");
 
   histo1d_["totWeightedSum"] = fs->make<TH1D>("totWeightedSum","totWeightedSum",1,0.,1.);
-  histo1d_["cutflow"] = fs->make<TH1D>("cutflow","cutflow",10,0.,10.);
+  histo1d_["cutflow"] = fs->make<TH1D>("cutflow","cutflow",20,0.,20.);
 
   // 3P0F
   histo1d_["3P0F_P1_pt"] = fs->make<TH1D>("3P0F_P1_pt","3P0F Pass M1 p_{T};p_{T} [GeV];",200,0.,500.);
@@ -648,6 +648,8 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   if (!isFired)
     return;
 
+  histo1d_["cutflow"]->Fill( 1.5, aWeight ); // fired trigger
+
   edm::Handle<edm::TriggerResults> METfilterHandle;
   iEvent.getByToken(METfilterToken_,METfilterHandle);
   edm::TriggerNames METfilters = iEvent.triggerNames(*METfilterHandle);
@@ -667,6 +669,8 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 
   if (nPassedFilters!=METfilterList_.size())
     return;
+
+  histo1d_["cutflow"]->Fill( 2.5, aWeight ); // MET filter
 
   std::vector<edm::RefToBase<pat::TriggerObjectStandAlone>> trigObjs;
 
@@ -691,12 +695,10 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 
   const reco::Vertex* primaryVertex = pvHandle->ptrAt(0).get();
 
-  histo1d_["cutflow"]->Fill( 1.5, aWeight );
-
   if (muonHandle->empty())
     return;
 
-  histo1d_["cutflow"]->Fill( 2.5, aWeight );
+  histo1d_["cutflow"]->Fill( 3.5, aWeight ); // has reco muons
 
   std::vector<pat::MuonRef> highPtMuons;
   std::vector<pat::MuonRef> highPtTrackerMuons; // but not highPtMuon
@@ -707,7 +709,8 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   for (unsigned int idx = 0; idx < muonHandle->size(); ++idx) {
     const auto& aMuon = muonHandle->refAt(idx);
 
-    if ( aMuon->tunePMuonBestTrack()->pt() < ptThres_ || std::abs(aMuon->eta()) > 2.4 )
+    if ( aMuon->tunePMuonBestTrack()->pt() < ptThres_ ||
+         std::abs(aMuon->tunePMuonBestTrack()->eta()) > 2.4 )
       continue;
 
     if ( muon::isHighPtMuon(*aMuon,*primaryVertex) )
@@ -738,7 +741,7 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   if ( allHighPtMuons.empty() || allHighPtMuons.front()->tunePMuonBestTrack()->pt() < ptThresTrig_ )
     return;
 
-  histo1d_["cutflow"]->Fill( 3.5, aWeight );
+  histo1d_["cutflow"]->Fill( 4.5, aWeight ); // has at least one high-pt muon passing trig threshold
 
   bool trigMatched = false;
   std::vector<double> trigSyst;
@@ -774,7 +777,7 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   if ( !trigMatched )
     return;
 
-  histo1d_["cutflow"]->Fill( 4.5, aWeight );
+  histo1d_["cutflow"]->Fill( 5.5, aWeight ); // trigger matching
 
   mucorrHelper_.nonHighPtMuonIso(nonHighPtMuons,
                                  nonHighPtMuonsVLiso,
@@ -806,7 +809,7 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   if (hasEle)
     return;
 
-  histo1d_["cutflow"]->Fill( 5.5, aWeight );
+  histo1d_["cutflow"]->Fill( 6.5, aWeight ); // no HEEP electrons
 
   std::vector<double> idSyst;
   std::vector<double> isoSyst;
@@ -909,12 +912,16 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   switch (allHighPtMuons.size()) {
     case 4:
       if (true) {
+        histo1d_["cutflow"]->Fill( 7.5, aWeight ); // 4 muons
+
         std::vector<pat::MuonRef> allMuons(allHighPtMuons);
         std::pair<pat::MuonRef,pat::MuonRef> pair1, pair2;
 
         bool paired = PairingHelper::pair4M(allHighPtMuons,pair1,pair2);
 
         if (paired && !checkTrackerMuPair(pair1) && !checkTrackerMuPair(pair2)) {
+          histo1d_["cutflow"]->Fill( 8.5, aWeight ); // pairing
+
           auto lvecM1 = lvecFromTuneP(pair1.first);
           auto lvecM2 = lvecFromTuneP(pair1.second);
           auto lvecM3 = lvecFromTuneP(pair2.first);
@@ -960,6 +967,8 @@ void ResolvedMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
           const double m4lsmear = std::min((lvecM1smear+lvecM2smear+lvecM3smear+lvecM4smear).M(),2499.9);
 
           if ( m4l > 50. /*&& (m4l < 500. || isMC_) (unblinded)*/ && lvecA1.M() > 1. && lvecA2.M() > 1. ) {
+            histo1d_["cutflow"]->Fill( 9.5, aWeight ); // SR
+
             histo1d_["4P0F_CR_llll_invM"]->Fill(m4l, aWeight);
             histo1d_["4P0F_CR_llll_invM_altMuScale"]->Fill(m4lAlt, aWeight);
             histo1d_["4P0F_CR_llll_invM_altMuSmear"]->Fill(m4lsmear, aWeight);

@@ -124,12 +124,62 @@ private:
   std::map<std::string,TH1*> histo1d_;
   std::map<std::string,TH2*> histo2d_;
 
+  // tree for the M = 550 GeV excess
   TTree* interestEvtTree_ = nullptr;
   unsigned int runNo_ = 0;
   unsigned int lumiNo_ = 0;
   unsigned long long evtNo_ = 0;
   float interestMll_ = -1.;
   float interestM4l_ = -1.;
+  float interestMee_ = -1.;
+
+  float treeWeight_ = -1.;
+  float treeMlllMEscale_ = -1.;
+  float treeMlllMEsmear_ = -1.;
+  float treeMlllAltMu_ = -1.;
+  float treeMlllSmear_ = -1.;
+
+  float treeWgtHeepIdUp_ = -1.;
+  float treeWgtHeepIdDn_ = -1.;
+  float treeWgtEleRecoUp_ = -1.;
+  float treeWgtEleRecoDn_ = -1.;
+  float treeWgtMergedEleIdUp_ = -1.;
+  float treeWgtMergedEleIdDn_ = -1.;
+  float treeWgtMuIdUp_ = -1.;
+  float treeWgtMuIdDn_ = -1.;
+  float treeWgtMuIsoUp_ = -1.;
+  float treeWgtMuIsoDn_ = -1.;
+  float treeWgtMuBoostIsoUp_ = -1.;
+  float treeWgtMuBoostIsoDn_ = -1.;
+  float treeWgtTrigUp_ = -1.;
+  float treeWgtTrigDn_ = -1.;
+  float treeWgtMuRecoUp_ = -1.;
+  float treeWgtMuRecoDn_ = -1.;
+  float treeWgtPUrwgtUp_ = -1.;
+  float treeWgtPUrwgtDn_ = -1.;
+  float treeWgtPrefireUp_ = -1.;
+  float treeWgtPrefireDn_ = -1.;
+
+  TTree* denomTree_ = nullptr;
+  float denomM4l_ = -1.;
+  float denomMll_ = -1.;
+  float denomMee_ = -1.;
+  float denomMlllAltMu_ = -1.;
+  float denomMlllPreCorr_ = -1.;
+  float denomMllAltMu_ = -1.;
+
+  float denomSSFFup_ = -1.;
+  float denomSSFFdn_ = -1.;
+  float denomSSFF_ = -1.;
+  float denomOSFFup_ = -1.;
+  float denomOSFFdn_ = -1.;
+  float denomOSFF_ = -1.;
+
+  float denomWeight_ = -1.;
+  float denomWgtHeepIdUp_ = -1.;
+  float denomWgtHeepIdDn_ = -1.;
+  float denomWgtEleRecoUp_ = -1.;
+  float denomWgtEleRecoDn_ = -1.;
 };
 
 MergedEMuCRanalyzer::MergedEMuCRanalyzer(const edm::ParameterSet& iConfig) :
@@ -229,8 +279,9 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["totWeightedSum"] = fs->make<TH1D>("totWeightedSum","totWeightedSum",1,0.,1.);
   histo1d_["totWeightedSum_2E2M"] = fs->make<TH1D>("totWeightedSum_2E2M","totWeightedSum_2E2M",1,0.,1.);
 
-  histo1d_["cutflow_2M"] = fs->make<TH1D>("cutflow_2M","cutflow",10,0.,10.);
-  histo1d_["cutflow_1M"] = fs->make<TH1D>("cutflow_1M","cutflow",15,0.,15.);
+  histo1d_["cutflow_2M"] = fs->make<TH1D>("cutflow_2M","cutflow",20,0.,20.);
+  histo1d_["cutflow_1M"] = fs->make<TH1D>("cutflow_1M","cutflow",20,0.,20.);
+  histo1d_["cutflow_2E"] = fs->make<TH1D>("cutflow_2E","cutflow",20,0.,20.);
 
   histo1d_["2M_CRME_Et"] = fs->make<TH1D>("2M_CRME_Et",";E_{T};",40,0.,200.);
   histo1d_["2M_CRME_eta"] = fs->make<TH1D>("2M_CRME_eta",";#eta;",50,-2.5,2.5);
@@ -410,6 +461,8 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["1M_CRME_MET_phi"] = fs->make<TH1D>("1M_CRME_MET_phi","Phi;#phi;",128,-3.2,3.2);
   histo1d_["1M_CRME_MET_dphi"] = fs->make<TH1D>("1M_CRME_MET_dphi","dPhi;#Delta#phi;",128,-3.2,3.2);
   histo1d_["1M_CRME_ratioPt"] = fs->make<TH1D>("1M_CRME_ratioPt",";#Sigma p_{T}^{l}/MET;",200,0.,5.);
+
+  // SR mT histograms and systematics
   histo1d_["1M_CRME_mt"] = fs->make<TH1D>("1M_CRME_mt","m_{T};m_{T};",500,0.,2500.);
   histo1d_["1M_CRME_mt_heepIdUp"] = fs->make<TH1D>("1M_CRME_mt_heepIdUp","m_{T};m_{T};",500,0.,2500.);
   histo1d_["1M_CRME_mt_heepIdDn"] = fs->make<TH1D>("1M_CRME_mt_heepIdDn","m_{T};m_{T};",500,0.,2500.);
@@ -438,6 +491,7 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["1M_CRME_mt_prefireUp"] = fs->make<TH1D>("1M_CRME_mt_prefireUp","m_{T};m_{T};",500,0.,2500.);
   histo1d_["1M_CRME_mt_prefireDn"] = fs->make<TH1D>("1M_CRME_mt_prefireDn","m_{T};m_{T};",500,0.,2500.);
 
+  // denominator region mT histograms
   histo1d_["1M_CRME_antiRpt_MM_pt"] = fs->make<TH1D>("1M_CRME_antiRpt_MM_pt","Pt;p_{T};",200,0.,500.);
   histo1d_["1M_CRME_antiRpt_MM_pt_xFF"] = fs->make<TH1D>("1M_CRME_antiRpt_MM_pt_xFF","Pt;p_{T};",200,0.,500.);
   histo1d_["1M_CRME_antiRpt_MM_eta"] = fs->make<TH1D>("1M_CRME_antiRpt_MM_eta","3Eta;#eta;",200,-2.5,2.5);
@@ -456,6 +510,44 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["1M_CRME_antiRpt_mt_xFF_mergedEleScale"] = fs->make<TH1D>("1M_CRME_antiRpt_mt_xFF_mergedEleScale","m_{T};m_{T};",500,0.,2500.);
   histo1d_["1M_CRME_antiRpt_mt_xFF_JESup"] = fs->make<TH1D>("1M_CRME_antiRpt_mt_xFF_JESup","m_{T};m_{T};",500,0.,2500.);
   histo1d_["1M_CRME_antiRpt_mt_xFF_JESdn"] = fs->make<TH1D>("1M_CRME_antiRpt_mt_xFF_JESdn","m_{T};m_{T};",500,0.,2500.);
+
+  // SR m4l histograms (Greg's comment)
+  histo1d_["1M_CRME_m4l"] = fs->make<TH1D>("1M_CRME_m4l","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_heepIdUp"] = fs->make<TH1D>("1M_CRME_m4l_heepIdUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_heepIdDn"] = fs->make<TH1D>("1M_CRME_m4l_heepIdDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_elRecoUp"] = fs->make<TH1D>("1M_CRME_m4l_elRecoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_elRecoDn"] = fs->make<TH1D>("1M_CRME_m4l_elRecoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_mergedEleIdUp"] = fs->make<TH1D>("1M_CRME_m4l_mergedEleIdUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_mergedEleIdDn"] = fs->make<TH1D>("1M_CRME_m4l_mergedEleIdDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_mergedEleScale"] = fs->make<TH1D>("1M_CRME_m4l_mergedEleScale","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_mergedEleSmear"] = fs->make<TH1D>("1M_CRME_m4l_mergedEleSmear","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muIdUp"] = fs->make<TH1D>("1M_CRME_m4l_muIdUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muIdDn"] = fs->make<TH1D>("1M_CRME_m4l_muIdDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muIsoUp"] = fs->make<TH1D>("1M_CRME_m4l_muIsoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muIsoDn"] = fs->make<TH1D>("1M_CRME_m4l_muIsoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muBoostIsoUp"] = fs->make<TH1D>("1M_CRME_m4l_muBoostIsoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muBoostIsoDn"] = fs->make<TH1D>("1M_CRME_m4l_muBoostIsoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_trigUp"] = fs->make<TH1D>("1M_CRME_m4l_trigUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_trigDn"] = fs->make<TH1D>("1M_CRME_m4l_trigDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muRecoUp"] = fs->make<TH1D>("1M_CRME_m4l_muRecoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_muRecoDn"] = fs->make<TH1D>("1M_CRME_m4l_muRecoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_JESup"] = fs->make<TH1D>("1M_CRME_m4l_JESup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_JESdn"] = fs->make<TH1D>("1M_CRME_m4l_JESdn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_JERup"] = fs->make<TH1D>("1M_CRME_m4l_JERup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_JERdn"] = fs->make<TH1D>("1M_CRME_m4l_JERdn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_PUrwgtUp"] = fs->make<TH1D>("1M_CRME_m4l_PUrwgtUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_PUrwgtDn"] = fs->make<TH1D>("1M_CRME_m4l_PUrwgtDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_prefireUp"] = fs->make<TH1D>("1M_CRME_m4l_prefireUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_m4l_prefireDn"] = fs->make<TH1D>("1M_CRME_m4l_prefireDn","m_{4l};m_{4l};",500,0.,2500.);
+
+  // denominator region m4l histograms
+  histo1d_["1M_CRME_antiRpt_m4l"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF_up"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF_up","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF_dn"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF_dn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF_mergedEleScale"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF_mergedEleScale","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF_JESup"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF_JESup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["1M_CRME_antiRpt_m4l_xFF_JESdn"] = fs->make<TH1D>("1M_CRME_antiRpt_m4l_xFF_JESdn","m_{4l};m_{4l};",500,0.,2500.);
 
   histo1d_["1M_CRME_CRdphi_MM_pt"] = fs->make<TH1D>("1M_CRME_CRdphi_MM_pt","Pt;p_{T};",200,0.,500.);
   histo1d_["1M_CRME_CRdphi_MM_eta"] = fs->make<TH1D>("1M_CRME_CRdphi_MM_eta","3Eta;#eta;",200,-2.5,2.5);
@@ -559,6 +651,8 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["2E_MET_phi"] = fs->make<TH1D>("2E_MET_phi","Phi;#phi;",128,-3.2,3.2);
   histo1d_["2E_MET_dphi"] = fs->make<TH1D>("2E_MET_dphi","dPhi;#Delta#phi;",128,-3.2,3.2);
   histo1d_["2E_ratioPt"] = fs->make<TH1D>("2E_ratioPt",";#Sigma p_{T}^{l}/MET;",200,0.,5.);
+
+  // SR mT histograms and systematic variations
   histo1d_["2E_mt"] = fs->make<TH1D>("2E_mt","m_{T};m_{T};",500,0.,2500.);
   histo1d_["2E_mt_heepIdUp"] = fs->make<TH1D>("2E_mt_heepIdUp","m_{T};m_{T};",500,0.,2500.);
   histo1d_["2E_mt_heepIdDn"] = fs->make<TH1D>("2E_mt_heepIdDn","m_{T};m_{T};",500,0.,2500.);
@@ -581,6 +675,7 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["2E_mt_prefireUp"] = fs->make<TH1D>("2E_mt_prefireUp","m_{T};m_{T};",500,0.,2500.);
   histo1d_["2E_mt_prefireDn"] = fs->make<TH1D>("2E_mt_prefireDn","m_{T};m_{T};",500,0.,2500.);
 
+  // denominator region mT histograms and systematic variations
   histo1d_["2E_antiRpt_MM_pt"] = fs->make<TH1D>("2E_antiRpt_MM_pt","Pt;p_{T};",200,0.,500.);
   histo1d_["2E_antiRpt_MM_pt_xFF"] = fs->make<TH1D>("2E_antiRpt_MM_pt_xFF","Pt;p_{T};",200,0.,500.);
   histo1d_["2E_antiRpt_MM_eta"] = fs->make<TH1D>("2E_antiRpt_MM_eta","3Eta;#eta;",200,-2.5,2.5);
@@ -596,6 +691,38 @@ void MergedEMuCRanalyzer::beginJob() {
   histo1d_["2E_antiRpt_mt_xFF_JESup"] = fs->make<TH1D>("2E_antiRpt_mt_xFF_JESup","m_{T};m_{T};",500,0.,2500.);
   histo1d_["2E_antiRpt_mt_xFF_JESdn"] = fs->make<TH1D>("2E_antiRpt_mt_xFF_JESdn","m_{T};m_{T};",500,0.,2500.);
 
+  // SR m4l histograms (Greg's comment)
+  histo1d_["2E_m4l"] = fs->make<TH1D>("2E_m4l","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_heepIdUp"] = fs->make<TH1D>("2E_m4l_heepIdUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_heepIdDn"] = fs->make<TH1D>("2E_m4l_heepIdDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_elRecoUp"] = fs->make<TH1D>("2E_m4l_elRecoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_elRecoDn"] = fs->make<TH1D>("2E_m4l_elRecoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muIdUp"] = fs->make<TH1D>("2E_m4l_muIdUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muIdDn"] = fs->make<TH1D>("2E_m4l_muIdDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muIsoUp"] = fs->make<TH1D>("2E_m4l_muIsoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muIsoDn"] = fs->make<TH1D>("2E_m4l_muIsoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_trigUp"] = fs->make<TH1D>("2E_m4l_trigUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_trigDn"] = fs->make<TH1D>("2E_m4l_trigDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muRecoUp"] = fs->make<TH1D>("2E_m4l_muRecoUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_muRecoDn"] = fs->make<TH1D>("2E_m4l_muRecoDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_JESup"] = fs->make<TH1D>("2E_m4l_JESup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_JESdn"] = fs->make<TH1D>("2E_m4l_JESdn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_JERup"] = fs->make<TH1D>("2E_m4l_JERup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_JERdn"] = fs->make<TH1D>("2E_m4l_JERdn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_PUrwgtUp"] = fs->make<TH1D>("2E_m4l_PUrwgtUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_PUrwgtDn"] = fs->make<TH1D>("2E_m4l_PUrwgtDn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_prefireUp"] = fs->make<TH1D>("2E_m4l_prefireUp","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_m4l_prefireDn"] = fs->make<TH1D>("2E_m4l_prefireDn","m_{4l};m_{4l};",500,0.,2500.);
+
+  // denominator region m4l histograms (Greg's comment)
+  histo1d_["2E_antiRpt_m4l"] = fs->make<TH1D>("2E_antiRpt_m4l","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_antiRpt_m4l_xFF"] = fs->make<TH1D>("2E_antiRpt_m4l_xFF","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_antiRpt_m4l_xFF_up"] = fs->make<TH1D>("2E_antiRpt_m4l_xFF_up","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_antiRpt_m4l_xFF_dn"] = fs->make<TH1D>("2E_antiRpt_m4l_xFF_dn","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_antiRpt_m4l_xFF_JESup"] = fs->make<TH1D>("2E_antiRpt_m4l_xFF_JESup","m_{4l};m_{4l};",500,0.,2500.);
+  histo1d_["2E_antiRpt_m4l_xFF_JESdn"] = fs->make<TH1D>("2E_antiRpt_m4l_xFF_JESdn","m_{4l};m_{4l};",500,0.,2500.);
+
+  // CR histograms
   histo1d_["2E_CRdphi_MM_pt"] = fs->make<TH1D>("2E_CRdphi_MM_pt","Pt;p_{T};",200,0.,500.);
   histo1d_["2E_CRdphi_MM_eta"] = fs->make<TH1D>("2E_CRdphi_MM_eta","3Eta;#eta;",200,-2.5,2.5);
   histo1d_["2E_CRdphi_MM_phi"] = fs->make<TH1D>("2E_CRdphi_MM_phi","Phi;#phi;",128,-3.2,3.2);
@@ -666,6 +793,56 @@ void MergedEMuCRanalyzer::beginJob() {
   interestEvtTree_->Branch("evtNo",&evtNo_,"evtNo/l");
   interestEvtTree_->Branch("mll",&interestMll_,"mll/F");
   interestEvtTree_->Branch("m4l",&interestM4l_,"m4l/F");
+  interestEvtTree_->Branch("mee",&interestMee_,"mee/F");
+
+  interestEvtTree_->Branch("weight",&treeWeight_,"weight/F");
+  interestEvtTree_->Branch("mlllMEscale",&treeMlllMEscale_,"mlllMEscale/F");
+  interestEvtTree_->Branch("mlllMEsmear",&treeMlllMEsmear_,"mlllMEsmear/F");
+  interestEvtTree_->Branch("mlllAltMu",&treeMlllAltMu_,"mlllAltMu/F");
+  interestEvtTree_->Branch("mlllSmear",&treeMlllSmear_,"mlllSmear/F");
+
+  interestEvtTree_->Branch("wgtHeepIdUp",&treeWgtHeepIdUp_,"wgtHeepIdUp/F");
+  interestEvtTree_->Branch("wgtHeepIdDn",&treeWgtHeepIdDn_,"wgtHeepIdDn/F");
+  interestEvtTree_->Branch("wgtEleRecoUp",&treeWgtEleRecoUp_,"wgtEleRecoUp/F");
+  interestEvtTree_->Branch("wgtEleRecoDn",&treeWgtEleRecoDn_,"wgtEleRecoDn/F");
+  interestEvtTree_->Branch("wgtMergedEleIdUp",&treeWgtMergedEleIdUp_,"wgtMergedEleIdUp/F");
+  interestEvtTree_->Branch("wgtMergedEleIdDn",&treeWgtMergedEleIdDn_,"wgtMergedEleIdDn/F");
+  interestEvtTree_->Branch("wgtMuIdUp",&treeWgtMuIdUp_,"wgtMuIdUp/F");
+  interestEvtTree_->Branch("wgtMuIdDn",&treeWgtMuIdDn_,"wgtMuIdDn/F");
+  interestEvtTree_->Branch("wgtMuIsoUp",&treeWgtMuIsoUp_,"wgtMuIsoUp/F");
+  interestEvtTree_->Branch("wgtMuIsoDn",&treeWgtMuIsoDn_,"wgtMuIsoDn/F");
+  interestEvtTree_->Branch("wgtMuBoostIsoUp",&treeWgtMuBoostIsoUp_,"wgtMuBoostIsoUp/F");
+  interestEvtTree_->Branch("wgtMuBoostIsoDn",&treeWgtMuBoostIsoDn_,"wgtMuBoostIsoDn/F");
+  interestEvtTree_->Branch("wgtTrigUp",&treeWgtTrigUp_,"wgtTrigUp/F");
+  interestEvtTree_->Branch("wgtTrigDn",&treeWgtTrigDn_,"wgtTrigDn/F");
+  interestEvtTree_->Branch("wgtMuRecoUp",&treeWgtMuRecoUp_,"wgtMuRecoUp/F");
+  interestEvtTree_->Branch("wgtMuRecoDn",&treeWgtMuRecoDn_,"wgtMuRecoDn/F");
+  interestEvtTree_->Branch("wgtPUrwgtUp",&treeWgtPUrwgtUp_,"wgtPUrwgtUp/F");
+  interestEvtTree_->Branch("wgtPUrwgtDn",&treeWgtPUrwgtDn_,"wgtPUrwgtDn/F");
+  interestEvtTree_->Branch("wgtPrefireUp",&treeWgtPrefireUp_,"wgtPrefireUp/F");
+  interestEvtTree_->Branch("wgtPrefireDn",&treeWgtPrefireDn_,"wgtPrefireDn/F");
+
+  denomTree_ = fs->make<TTree>("denomTree","denomTree");
+  denomTree_->Branch("m4l",&denomM4l_,"m4l/F");
+  denomTree_->Branch("mll",&denomMll_,"mll/F");
+  denomTree_->Branch("mee",&denomMee_,"mee/F");
+
+  denomTree_->Branch("mlllAltMu",&denomMlllAltMu_,"mlllAltMu/F");
+  denomTree_->Branch("mlllPreCorr",&denomMlllPreCorr_,"mlllPreCorr/F");
+  denomTree_->Branch("mllAltMu",&denomMllAltMu_,"mllAltMu/F");
+
+  denomTree_->Branch("SSFFup",&denomSSFFup_,"SSFFup/F");
+  denomTree_->Branch("SSFFdn",&denomSSFFdn_,"SSFFdn/F");
+  denomTree_->Branch("SSFF",&denomSSFF_,"SSFF/F");
+  denomTree_->Branch("OSFFup",&denomOSFFup_,"OSFFup/F");
+  denomTree_->Branch("OSFFdn",&denomOSFFdn_,"OSFFdn/F");
+  denomTree_->Branch("OSFF",&denomOSFF_,"OSFF/F");
+
+  denomTree_->Branch("weight",&denomWeight_,"weight/F");
+  denomTree_->Branch("wgtHeepIdUp",&denomWgtHeepIdUp_,"wgtHeepIdUp/F");
+  denomTree_->Branch("wgtHeepIdDn",&denomWgtHeepIdDn_,"wgtHeepIdDn/F");
+  denomTree_->Branch("wgtEleRecoUp",&denomWgtEleRecoUp_,"wgtEleRecoUp/F");
+  denomTree_->Branch("wgtEleRecoDn",&denomWgtEleRecoDn_,"wgtEleRecoDn/F");
 }
 
 void MergedEMuCRanalyzer::endJob() {
@@ -753,6 +930,9 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   }
 
   histo1d_["totWeightedSum"]->Fill(0.5,aWeight);
+  histo1d_["cutflow_2M"]->Fill( 0.5, aWeight );
+  histo1d_["cutflow_1M"]->Fill( 0.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 0.5, aWeight );
 
   edm::Handle<edm::TriggerResults> trigResultHandle;
   iEvent.getByToken(triggerToken_,trigResultHandle);
@@ -793,14 +973,12 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
     } // fired triggers
   } // trigger objs
 
-  histo1d_["cutflow_2M"]->Fill( 0.5, aWeight );
-  histo1d_["cutflow_1M"]->Fill( 0.5, aWeight );
-
   if (!isFired)
     return;
 
-  histo1d_["cutflow_2M"]->Fill( 1.5, aWeight );
+  histo1d_["cutflow_2M"]->Fill( 1.5, aWeight ); // fired trigger
   histo1d_["cutflow_1M"]->Fill( 1.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 1.5, aWeight );
 
   edm::Handle<edm::TriggerResults> METfilterHandle;
   iEvent.getByToken(METfilterToken_,METfilterHandle);
@@ -822,8 +1000,9 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if (nPassedFilters!=METfilterList_.size())
     return;
 
-  histo1d_["cutflow_2M"]->Fill( 2.5, aWeight );
+  histo1d_["cutflow_2M"]->Fill( 2.5, aWeight ); // MET filter
   histo1d_["cutflow_1M"]->Fill( 2.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 2.5, aWeight );
 
   reco::Vertex primaryVertex;
 
@@ -838,7 +1017,8 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   for (unsigned int idx = 0; idx < muonHandle->size(); ++idx) {
     const auto& aMuon = muonHandle->refAt(idx);
 
-    if ( aMuon->pt() < ptMuThres_ || std::abs(aMuon->eta()) > 2.4 )
+    if ( aMuon->tunePMuonBestTrack()->pt() < ptMuThres_||
+         std::abs(aMuon->tunePMuonBestTrack()->eta()) > 2.4 )
       continue;
 
     const auto casted = aMuon.castTo<pat::MuonRef>();
@@ -877,8 +1057,9 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if ( allHighPtMuons.front()->tunePMuonBestTrack()->pt() < 52. )
     return;
 
-  histo1d_["cutflow_2M"]->Fill( 3.5, aWeight );
+  histo1d_["cutflow_2M"]->Fill( 3.5, aWeight ); // at least one high-pt muon passing trigger threshold
   histo1d_["cutflow_1M"]->Fill( 3.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 3.5, aWeight );
 
   bool trigMatched = false;
   std::vector<double> trigSyst;
@@ -914,6 +1095,10 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if ( !trigMatched )
     return;
 
+  histo1d_["cutflow_2M"]->Fill( 4.5, aWeight ); // trigger matching
+  histo1d_["cutflow_1M"]->Fill( 4.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 4.5, aWeight );
+
   std::vector<pat::MuonRef> nonHighPtMuons;
   std::vector<pat::MuonRef> nonHighPtMuonsVLiso;
   std::map<pat::MuonRef,float> nonHighPtIsos;
@@ -932,8 +1117,9 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   if (!nonHighPtMuonsVLiso.empty())
     return;
 
-  histo1d_["cutflow_2M"]->Fill( 4.5, aWeight );
-  histo1d_["cutflow_1M"]->Fill( 4.5, aWeight );
+  histo1d_["cutflow_2M"]->Fill( 5.5, aWeight ); // reject non-high-pt muons (to avoid overlap with CRs)
+  histo1d_["cutflow_1M"]->Fill( 5.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 5.5, aWeight );
 
   // do electron selection
   edm::Handle<edm::View<pat::Electron>> eleHandle;
@@ -1066,13 +1252,21 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
     }
   }
 
-  std::sort(acceptEles.begin(),acceptEles.end(),sortByEt);
-
   if ( acceptEles.empty() )
     return;
 
+  std::sort(acceptEles.begin(),acceptEles.end(),sortByEt);
+
+  histo1d_["cutflow_2M"]->Fill( 6.5, aWeight ); // has HEEP electrons
+  histo1d_["cutflow_1M"]->Fill( 6.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 6.5, aWeight );
+
   if ( !nonHeepEles.empty() )
     return;
+
+  histo1d_["cutflow_2M"]->Fill( 7.5, aWeight ); // no non-HEEP electrons (to avoid overlap with CRs)
+  histo1d_["cutflow_1M"]->Fill( 7.5, aWeight );
+  histo1d_["cutflow_2E"]->Fill( 7.5, aWeight );
 
   std::vector<pat::ElectronRef> CRMEs;
   std::vector<pat::ElectronRef> antiMEs;
@@ -1232,7 +1426,7 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   };
 
   if ( nHighPtMuons==2 && acceptEles.size()==1 ) {
-    histo1d_["cutflow_2M"]->Fill( 5.5, aWeight );
+    histo1d_["cutflow_2M"]->Fill( 8.5, aWeight ); // 2 high-pt muons and one HEEP electron
 
     const pat::MuonRef& aMu = allHighPtMuons.at(0);
     const pat::MuonRef& bMu = allHighPtMuons.at(1);
@@ -1268,6 +1462,8 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
     const auto lvecM2smear = lvecMb*momcorr2*mucorrHelper_.smear(bMu,muSmearParams_,{0.46,0.46},isMC_);
 
     if ( CRMEs.size()==1 && antiMEs.size()==0 ) {
+      histo1d_["cutflow_2M"]->Fill( 9.5, aWeight ); // has a merged electron
+
       const double scale = systHelperEle_.mergedEleScale(CRMEs.front(),isMC_);
       const double smear = systHelperEle_.mergedEleSmear(CRMEs.front(),(*union5x5EnergyHandle)[CRMEs.front()],isMC_);
 
@@ -1290,6 +1486,8 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       const double mlllMEsmear = std::min((lvecCRME_smear + lvecMa + lvecMb).M(),2499.9);
 
       if ( mlll > 50. /*&& (mlll < 500. || isMC_) (unblinded)*/ ) {
+        histo1d_["cutflow_2M"]->Fill( 10.5, aWeight ); // SR
+
         histo1d_["2M_CRME_lll_invM"]->Fill(mlll,aWeight);
         histo1d_["2M_CRME_lll_invM_mergedEleScale"]->Fill(mlllMEscale,aWeight);
         histo1d_["2M_CRME_lll_invM_mergedEleSmear"]->Fill(mlllMEsmear,aWeight);
@@ -1316,12 +1514,67 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         histo1d_["2M_CRME_lll_invM_prefireUp"]->Fill(mlll,aWeight*prefireUp/prefireNo);
         histo1d_["2M_CRME_lll_invM_prefireDn"]->Fill(mlll,aWeight*prefireDn/prefireNo);
 
-        if (mlll > 500. && mlll < 600.) {
+        if (mlll > 400. && mlll < 700.) {
           runNo_ = iEvent.id().run();
           lumiNo_ = iEvent.id().luminosityBlock();
           evtNo_ = iEvent.id().event();
           interestMll_ = mll;
           interestM4l_ = mlll;
+
+          if ( CRMEs.front()->userInt("mvaMergedElectronCategories")==1 )
+            interestMee_ = -1.;
+          else {
+            auto lvecME_e1 = math::PtEtaPhiMLorentzVector(CRMEs.front()->gsfTrack()->ptMode(),
+                                                          CRMEs.front()->gsfTrack()->etaMode(),
+                                                          CRMEs.front()->gsfTrack()->phiMode(),
+                                                          0.);
+
+            auto lvecME_e2 = math::PtEtaPhiMLorentzVector();
+            const auto& addGsfTrk = (*addGsfTrkMap)[CRMEs.front()];
+            const auto& addPackedCand = (*addPackedCandHandle)[CRMEs.front()];
+
+            if (addGsfTrk.isNonnull()) {
+              lvecME_e2 = math::PtEtaPhiMLorentzVector(addGsfTrk->ptMode(),
+                                                       addGsfTrk->etaMode(),
+                                                       addGsfTrk->phiMode(),
+                                                       0.);
+            } else {
+              lvecME_e2 = math::PtEtaPhiMLorentzVector(addPackedCand->bestTrack()->pt(),
+                                                       addPackedCand->bestTrack()->eta(),
+                                                       addPackedCand->bestTrack()->phi(),
+                                                       0.);
+            }
+
+            interestMee_ = (lvecME_e1 + lvecME_e2).M();
+          }
+
+          treeWeight_ = aWeight;
+          treeMlllMEscale_ = mlllMEscale;
+          treeMlllMEsmear_ = mlllMEsmear;
+          treeMlllAltMu_ = mlllAltMu;
+          treeMlllSmear_ = mlllSmear;
+
+          treeWgtHeepIdUp_ = modHeepSFcl95(aWeight).first;
+          treeWgtHeepIdDn_ = modHeepSFcl95(aWeight).second;
+          treeWgtEleRecoUp_ = recoSFcl95(aWeight).first;
+          treeWgtEleRecoDn_ = recoSFcl95(aWeight).second;
+          treeWgtMergedEleIdUp_ = mergedEleSFcl95(aWeight).first;
+          treeWgtMergedEleIdDn_ = mergedEleSFcl95(aWeight).second;
+          treeWgtMuIdUp_ = aWeight*systSFratio(muIdSyst).first;
+          treeWgtMuIdDn_ = aWeight*systSFratio(muIdSyst).second;
+          treeWgtMuIsoUp_ = aWeight*systSFratio(muIsoSyst).first;
+          treeWgtMuIsoDn_ = aWeight*systSFratio(muIsoSyst).second;
+          treeWgtMuBoostIsoUp_ = boostIsoSFupdn(aWeight).first;
+          treeWgtMuBoostIsoDn_ = boostIsoSFupdn(aWeight).second;
+          treeWgtTrigUp_ = aWeight*systSFratio(trigSyst).first;
+          treeWgtTrigDn_ = aWeight*systSFratio(trigSyst).second;
+          treeWgtMuRecoUp_ = aWeight*systSFratio(muRecoSyst).first;
+          treeWgtMuRecoDn_ = aWeight*systSFratio(muRecoSyst).second;
+          treeWgtPUrwgtUp_ = aWeight*purwgtUp/purwgtNo;
+          treeWgtPUrwgtDn_ = aWeight*purwgtDn/purwgtNo;
+          treeWgtPrefireUp_ = aWeight*prefireUp/prefireNo;
+          treeWgtPrefireDn_ = aWeight*prefireDn/prefireNo;
+
           interestEvtTree_->Fill();
         }
       }
@@ -1394,6 +1647,7 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       const double mlll = lvecAllME.M();
       const double mlllPreCorr = lvecAllMEpreCorr.M();
       const double mlllAltMu = (lvecM1alt + lvecM2alt + lvecAME).M();
+      const double mllAltMu = (lvecM1alt + lvecM2alt).M();
 
       int isGenMatched = isMC_ ? 0 : -1;
 
@@ -1448,6 +1702,56 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         histo1d_["2M_antiME_lll_invM_CR_xSSFF_up"]->Fill(mlll,aWeight*(ffSS+ci.first));
         histo1d_["2M_antiME_lll_invM_CR_xOSFF_dn"]->Fill(mlll,aWeight*(ffOS-ci.second));
         histo1d_["2M_antiME_lll_invM_CR_xSSFF_dn"]->Fill(mlll,aWeight*(ffSS-ci.first));
+
+        if ( mlll > 400. && mlll < 700. ) {
+          denomM4l_ = mlll;
+          denomMll_ = mll;
+          denomMee_ = -1.;
+          denomMlllAltMu_ = mlllAltMu;
+          denomMlllPreCorr_ = mlllPreCorr;
+          denomMllAltMu_ = mllAltMu;
+
+          if ( antiMEs.front()->userInt("mvaMergedElectronCategories")==1 )
+            denomMee_ = -1.;
+          else {
+            auto lvecME_e1 = math::PtEtaPhiMLorentzVector(antiMEs.front()->gsfTrack()->ptMode(),
+                                                          antiMEs.front()->gsfTrack()->etaMode(),
+                                                          antiMEs.front()->gsfTrack()->phiMode(),
+                                                          0.);
+
+            auto lvecME_e2 = math::PtEtaPhiMLorentzVector();
+            const auto& addGsfTrk = (*addGsfTrkMap)[antiMEs.front()];
+            const auto& addPackedCand = (*addPackedCandHandle)[antiMEs.front()];
+
+            if (addGsfTrk.isNonnull()) {
+              lvecME_e2 = math::PtEtaPhiMLorentzVector(addGsfTrk->ptMode(),
+                                                       addGsfTrk->etaMode(),
+                                                       addGsfTrk->phiMode(),
+                                                       0.);
+            } else {
+              lvecME_e2 = math::PtEtaPhiMLorentzVector(addPackedCand->bestTrack()->pt(),
+                                                       addPackedCand->bestTrack()->eta(),
+                                                       addPackedCand->bestTrack()->phi(),
+                                                       0.);
+            }
+
+            denomMee_ = (lvecME_e1 + lvecME_e2).M();
+          }
+
+          denomSSFFup_ = ffSS + ci.first;
+          denomSSFFdn_ = ffSS - ci.first;
+          denomSSFF_ = ffSS;
+          denomOSFFup_ = ffOS + ci.second;
+          denomOSFFdn_ = ffOS - ci.second;
+          denomOSFF_ = ffOS;
+
+          denomWeight_ = aWeight;
+          denomWgtHeepIdUp_ = modHeepSFcl95(aWeight).first;
+          denomWgtHeepIdDn_ = modHeepSFcl95(aWeight).second;
+          denomWgtEleRecoUp_ = recoSFcl95(aWeight).first;
+          denomWgtEleRecoDn_ = recoSFcl95(aWeight).second;
+          denomTree_->Fill();
+        }
 
         if ( true /*mlll < 500. (unblinded)*/ ) {
           const double u5x5Et = estimateU5x5Et(antiMEs.front());
@@ -1527,7 +1831,7 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   } // nHighPtMuons==2 && acceptEles.size()==1
 
   if ( nHighPtMuons==1 && acceptEles.size()==1 ) {
-    histo1d_["cutflow_1M"]->Fill( 5.5, aWeight );
+    histo1d_["cutflow_1M"]->Fill( 8.5, aWeight ); // has one high-pt muon and one HEEP electron
 
     const pat::MuonRef& aMu = allHighPtMuons.front();
 
@@ -1561,8 +1865,19 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
     const auto deltaJERup = jerUp - aMET.p4();
     const auto deltaJERdn = jerDn - aMET.p4();
 
+    // substitute eta hypothesis to check Greg's comment
+    const auto metp4_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto jesUp_etaHypo = math::PtEtaPhiMLorentzVector(aMET.shiftedPt(pat::MET::JetEnUp),aMu->tunePMuonBestTrack()->eta(),aMET.shiftedPhi(pat::MET::JetEnUp),0.);
+    const auto jesDn_etaHypo = math::PtEtaPhiMLorentzVector(aMET.shiftedPt(pat::MET::JetEnDown),aMu->tunePMuonBestTrack()->eta(),aMET.shiftedPhi(pat::MET::JetEnDown),0.);
+    const auto deltaJESup_etaHypo = jesUp_etaHypo - metp4_etaHypo;
+    const auto deltaJESdn_etaHypo = jesDn_etaHypo - metp4_etaHypo;
+    const auto jerUp_etaHypo = math::PtEtaPhiMLorentzVector(aMET.shiftedPt(pat::MET::JetResUp),aMu->tunePMuonBestTrack()->eta(),aMET.shiftedPhi(pat::MET::JetResUp),0.);
+    const auto jerDn_etaHypo = math::PtEtaPhiMLorentzVector(aMET.shiftedPt(pat::MET::JetResDown),aMu->tunePMuonBestTrack()->eta(),aMET.shiftedPhi(pat::MET::JetResDown),0.);
+    const auto deltaJERup_etaHypo = jerUp_etaHypo - metp4_etaHypo;
+    const auto deltaJERdn_etaHypo = jerDn_etaHypo - metp4_etaHypo;
+
     if ( CRMEs.size()==1 && antiMEs.size()==0 ) {
-      histo1d_["cutflow_1M"]->Fill( 6.5, aWeight );
+      histo1d_["cutflow_1M"]->Fill( 9.5, aWeight ); // has a merged electron
 
       const double scale = systHelperEle_.mergedEleScale(CRMEs.front(),isMC_);
       const double smear = systHelperEle_.mergedEleSmear(CRMEs.front(),(*union5x5EnergyHandle)[CRMEs.front()],isMC_);
@@ -1584,14 +1899,29 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       const double mtllMETjerUp = std::min((lvecCRllMET+deltaJERup).mt(),2499.9);
       const double mtllMETjerDn = std::min((lvecCRllMET+deltaJERdn).mt(),2499.9);
 
+      // eta hypothesis variations
+      const auto tpMET_etaHypo = metp4_etaHypo - lvecMa - lvecCRME
+                                 + aMu->p4() + CRMEs.front()->p4();
+      const auto lvecCRllMET_etaHypo = lvecCRME + lvecMa + tpMET_etaHypo;
+      const double m4lMET = std::min(lvecCRllMET_etaHypo.M(),2499.9);
+      const double m4lMETmergedEleScale = std::min((lvecCRME_scale + lvecMa + tpMET_etaHypo).M(),2499.9);
+      const double m4lMETmergedEleSmear = std::min((lvecCRME_smear + lvecMa + tpMET_etaHypo).M(),2499.9);
+      const double m4lMETjesUp = std::min((lvecCRllMET_etaHypo+deltaJESup_etaHypo).M(),2499.9);
+      const double m4lMETjesDn = std::min((lvecCRllMET_etaHypo+deltaJESdn_etaHypo).M(),2499.9);
+      const double m4lMETjerUp = std::min((lvecCRllMET_etaHypo+deltaJERup_etaHypo).M(),2499.9);
+      const double m4lMETjerDn = std::min((lvecCRllMET_etaHypo+deltaJERdn_etaHypo).M(),2499.9);
+
       double ffMM = ffFunc_->Eval(mtllMET);
       ffMM = ffMM > 0. ? ffMM : 0.;
       const double xvalMM[1] = {mtllMET};
       double ciMM[1];
       fitResult_->GetConfidenceIntervals(1,1,0,xvalMM,ciMM,0.95,false);
 
+      if ( tpMET.pt() > ptThres_ )
+        histo1d_["cutflow_1M"]->Fill( 10.5 , aWeight ); // MET cut
+
       if ( tpMET.pt() > ptThres_ && lvecCRll.M() > 50. ) {
-        histo1d_["cutflow_1M"]->Fill( 7.5, aWeight );
+        histo1d_["cutflow_1M"]->Fill( 11.5, aWeight ); // M(emu) > 50
 
         double dphi = reco::deltaPhi(lvecMa.phi(),tpMET.phi());
         bool passDPhi = std::abs(dphi) < drThres_;
@@ -1611,10 +1941,10 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         histo2d_["1M_dphi_ratioPt"]->Fill(dphi,ratioPt,aWeight);
 
         if (passDPhi)
-          histo1d_["cutflow_1M"]->Fill( 8.5, aWeight );
+          histo1d_["cutflow_1M"]->Fill( 12.5, aWeight ); // delta phi cut
 
         if ( passDPhi && passRatioPt ) {
-          histo1d_["cutflow_1M"]->Fill( 9.5, aWeight );
+          histo1d_["cutflow_1M"]->Fill( 13.5, aWeight ); // SR
 
           if ( true /*mtllMET < 500. || isMC_ (unblinded)*/ ) { // blinded
             histo1d_["1M_CRME_MM_pt"]->Fill( lvecMa.pt(), aWeight );
@@ -1669,6 +1999,35 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
 
             histo1d_["1M_FF_CRME_MMMET_pt"]->Fill( (tpMET+lvecMa).pt(), aWeight );
             histo1d_["1M_FF_CRME_MET_pt"]->Fill( tpMET.pt(), aWeight );
+
+            // eta hypothesis variations
+            histo1d_["1M_CRME_m4l"]->Fill( m4lMET, aWeight );
+            histo1d_["1M_CRME_m4l_heepIdUp"]->Fill( m4lMET, modHeepSFcl95(aWeight).first );
+            histo1d_["1M_CRME_m4l_heepIdDn"]->Fill( m4lMET, modHeepSFcl95(aWeight).second );
+            histo1d_["1M_CRME_m4l_elRecoUp"]->Fill( m4lMET, recoSFcl95(aWeight).first );
+            histo1d_["1M_CRME_m4l_elRecoDn"]->Fill( m4lMET, recoSFcl95(aWeight).second );
+            histo1d_["1M_CRME_m4l_mergedEleIdUp"]->Fill( m4lMET, mergedEleSFcl95(aWeight).first );
+            histo1d_["1M_CRME_m4l_mergedEleIdDn"]->Fill( m4lMET, mergedEleSFcl95(aWeight).second );
+            histo1d_["1M_CRME_m4l_mergedEleScale"]->Fill( m4lMETmergedEleScale, aWeight );
+            histo1d_["1M_CRME_m4l_mergedEleSmear"]->Fill( m4lMETmergedEleSmear, aWeight );
+            histo1d_["1M_CRME_m4l_muIdUp"]->Fill( m4lMET, aWeight*systSFratio(muIdSyst).first );
+            histo1d_["1M_CRME_m4l_muIdDn"]->Fill( m4lMET, aWeight*systSFratio(muIdSyst).second );
+            histo1d_["1M_CRME_m4l_muIsoUp"]->Fill( m4lMET, aWeight*systSFratio(muIsoSyst).first );
+            histo1d_["1M_CRME_m4l_muIsoDn"]->Fill( m4lMET, aWeight*systSFratio(muIsoSyst).second );
+            histo1d_["1M_CRME_m4l_muBoostIsoUp"]->Fill( m4lMET, boostIsoSFupdn(aWeight).first );
+            histo1d_["1M_CRME_m4l_muBoostIsoDn"]->Fill( m4lMET, boostIsoSFupdn(aWeight).second );
+            histo1d_["1M_CRME_m4l_trigUp"]->Fill( m4lMET, aWeight*systSFratio(trigSyst).first );
+            histo1d_["1M_CRME_m4l_trigDn"]->Fill( m4lMET, aWeight*systSFratio(trigSyst).second );
+            histo1d_["1M_CRME_m4l_muRecoUp"]->Fill( m4lMET, aWeight*systSFratio(muRecoSyst).first );
+            histo1d_["1M_CRME_m4l_muRecoDn"]->Fill( m4lMET, aWeight*systSFratio(muRecoSyst).second );
+            histo1d_["1M_CRME_m4l_JESup"]->Fill( m4lMETjesUp, aWeight );
+            histo1d_["1M_CRME_m4l_JESdn"]->Fill( m4lMETjesDn, aWeight );
+            histo1d_["1M_CRME_m4l_JERup"]->Fill( m4lMETjerUp, aWeight );
+            histo1d_["1M_CRME_m4l_JERdn"]->Fill( m4lMETjerDn, aWeight );
+            histo1d_["1M_CRME_m4l_PUrwgtUp"]->Fill( m4lMET, aWeight*purwgtUp/purwgtNo );
+            histo1d_["1M_CRME_m4l_PUrwgtDn"]->Fill( m4lMET, aWeight*purwgtDn/purwgtNo );
+            histo1d_["1M_CRME_m4l_prefireUp"]->Fill( m4lMET, aWeight*prefireUp/prefireNo );
+            histo1d_["1M_CRME_m4l_prefireDn"]->Fill( m4lMET, aWeight*prefireDn/prefireNo );
           }
         } else if ( passDPhi && !passRatioPt ) {
           histo1d_["1M_CRME_antiRpt_MM_pt"]->Fill( lvecMa.pt(), aWeight );
@@ -1689,6 +2048,15 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
           histo1d_["1M_CRME_antiRpt_mt_xFF_dn"]->Fill( mtllMET, aWeight*(ffMM-std::min(ciMM[0],ffMM)) );
           histo1d_["1M_CRME_antiRpt_mt_xFF_JESup"]->Fill( mtllMETjesUp, aWeight*ffMM );
           histo1d_["1M_CRME_antiRpt_mt_xFF_JESdn"]->Fill( mtllMETjesDn, aWeight*ffMM );
+
+          // eta hypothesis variations
+          histo1d_["1M_CRME_antiRpt_m4l"]->Fill( m4lMET, aWeight );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF"]->Fill( m4lMET, aWeight*ffMM );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF_mergedEleScale"]->Fill( m4lMETmergedEleScale, aWeight*ffMM );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF_up"]->Fill( m4lMET, aWeight*(ffMM+ciMM[0]) );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF_dn"]->Fill( m4lMET, aWeight*(ffMM-std::min(ciMM[0],ffMM)) );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF_JESup"]->Fill( m4lMETjesUp, aWeight*ffMM );
+          histo1d_["1M_CRME_antiRpt_m4l_xFF_JESdn"]->Fill( m4lMETjesDn, aWeight*ffMM );
         } else if ( passDPhiCR && passRatioPt ) {
           histo1d_["1M_CRME_CRdphi_MM_pt"]->Fill( lvecMa.pt(), aWeight );
           histo1d_["1M_CRME_CRdphi_MM_eta"]->Fill( lvecMa.eta(), aWeight );
@@ -1788,6 +2156,8 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   } // nHighPtMuons==1 && acceptEles.size()==1
 
   if ( nHighPtMuons==1 && acceptEles.size()==2 ) {
+    histo1d_["cutflow_2E"]->Fill( 8.5, aWeight ); // has one high-pt muon and two HEEP electrons
+
     const pat::MuonRef& aMu = allHighPtMuons.front();
 
     double momcorr1 = 1.;
@@ -1836,13 +2206,38 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
     const double mtlllMETjerUp = std::min((lveclllMET+deltaJERup).mt(),2499.9);
     const double mtlllMETjerDn = std::min((lveclllMET+deltaJERdn).mt(),2499.9);
 
+    // substitute eta hypothesis to check Greg's comment
+    const auto metp4_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto jesUp_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto jesDn_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto jerUp_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto jerDn_etaHypo = math::PtEtaPhiMLorentzVector(aMET.pt(),aMu->tunePMuonBestTrack()->eta(),aMET.phi(),0.);
+    const auto deltaJESup_etaHypo = jesUp_etaHypo - metp4_etaHypo;
+    const auto deltaJESdn_etaHypo = jesDn_etaHypo - metp4_etaHypo;
+    const auto deltaJERup_etaHypo = jerUp_etaHypo - metp4_etaHypo;
+    const auto deltaJERdn_etaHypo = jerDn_etaHypo - metp4_etaHypo;
+
+    // eta hypothesis variations
+    const auto tpMET_etaHypo = metp4_etaHypo - lvecMa + aMu->p4();
+    const auto lvec4lMET_etaHypo = lvecNME1 + lvecNME2 + lvecMa + tpMET_etaHypo;
+    const double m4lMET = std::min(lvec4lMET_etaHypo.M(),2499.9);
+    const double m4lMETjesUp = std::min((lvec4lMET_etaHypo+deltaJESup_etaHypo).M(),2499.9);
+    const double m4lMETjesDn = std::min((lvec4lMET_etaHypo+deltaJESdn_etaHypo).M(),2499.9);
+    const double m4lMETjerUp = std::min((lvec4lMET_etaHypo+deltaJERup_etaHypo).M(),2499.9);
+    const double m4lMETjerDn = std::min((lvec4lMET_etaHypo+deltaJERdn_etaHypo).M(),2499.9);
+
     double ffMM = ffFunc_->Eval(mtlllMET);
     ffMM = ffMM > 0. ? ffMM : 0.;
     const double xvalMM[1] = {mtlllMET};
     double ciMM[1];
     fitResult_->GetConfidenceIntervals(1,1,0,xvalMM,ciMM,0.95,false);
 
+    if ( tpMET.pt() > ptThres_ )
+      histo1d_["cutflow_2E"]->Fill( 9.5, aWeight ); // MET cut
+
     if ( tpMET.pt() > ptThres_ && lveclll.M() > 50. ) {
+      histo1d_["cutflow_2E"]->Fill( 10.5, aWeight ); // invM cut
+
       double dphi = reco::deltaPhi(lvecMa.phi(),tpMET.phi());
       bool passDPhi = std::abs(dphi) < drThres_;
       bool passDPhiCR = (std::abs(dphi) < drThresCR_) && !passDPhi;
@@ -1860,8 +2255,13 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       histo2d_["2E_mt_ratioPt"]->Fill(mtlllMET,ratioPt,aWeight);
       histo2d_["2E_dphi_ratioPt"]->Fill(dphi,ratioPt,aWeight);
 
+      if ( passDPhi )
+        histo1d_["cutflow_2E"]->Fill( 11.5, aWeight ); // delta phi cut
+
       if ( passDPhi && passRatioPt ) {
         if ( true /*mtlllMET < 500. || isMC_ (unblinded)*/ ) { // blinded
+          histo1d_["cutflow_2E"]->Fill( 12.5, aWeight ); // SR
+
           histo1d_["2E_MM_pt"]->Fill( lvecMa.pt(), aWeight );
           histo1d_["2E_MM_eta"]->Fill( lvecMa.eta(), aWeight );
           histo1d_["2E_MM_phi"]->Fill( lvecMa.phi(), aWeight );
@@ -1895,6 +2295,29 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
 
           histo1d_["2E_FF_MMMET_pt"]->Fill( (tpMET+lvecMa).pt(), aWeight );
           histo1d_["2E_FF_MET_pt"]->Fill( tpMET.pt(), aWeight );
+
+          // eta hypothesis variations
+          histo1d_["2E_m4l"]->Fill( m4lMET, aWeight );
+          histo1d_["2E_m4l_heepIdUp"]->Fill( m4lMET, modHeepSFcl95(aWeight).first );
+          histo1d_["2E_m4l_heepIdDn"]->Fill( m4lMET, modHeepSFcl95(aWeight).second );
+          histo1d_["2E_m4l_elRecoUp"]->Fill( m4lMET, recoSFcl95(aWeight).first );
+          histo1d_["2E_m4l_elRecoDn"]->Fill( m4lMET, recoSFcl95(aWeight).second );
+          histo1d_["2E_m4l_muIdUp"]->Fill( m4lMET, aWeight*systSFratio(muIdSyst).first );
+          histo1d_["2E_m4l_muIdDn"]->Fill( m4lMET, aWeight*systSFratio(muIdSyst).second );
+          histo1d_["2E_m4l_muIsoUp"]->Fill( m4lMET, aWeight*systSFratio(muIsoSyst).first );
+          histo1d_["2E_m4l_muIsoDn"]->Fill( m4lMET, aWeight*systSFratio(muIsoSyst).second );
+          histo1d_["2E_m4l_trigUp"]->Fill( m4lMET, aWeight*systSFratio(trigSyst).first );
+          histo1d_["2E_m4l_trigDn"]->Fill( m4lMET, aWeight*systSFratio(trigSyst).second );
+          histo1d_["2E_m4l_muRecoUp"]->Fill( m4lMET, aWeight*systSFratio(muRecoSyst).first );
+          histo1d_["2E_m4l_muRecoDn"]->Fill( m4lMET, aWeight*systSFratio(muRecoSyst).second );
+          histo1d_["2E_m4l_JESup"]->Fill( m4lMETjesUp, aWeight );
+          histo1d_["2E_m4l_JESdn"]->Fill( m4lMETjesDn, aWeight );
+          histo1d_["2E_m4l_JERup"]->Fill( m4lMETjerUp, aWeight );
+          histo1d_["2E_m4l_JERdn"]->Fill( m4lMETjerDn, aWeight );
+          histo1d_["2E_m4l_PUrwgtUp"]->Fill( m4lMET, aWeight*purwgtUp/purwgtNo );
+          histo1d_["2E_m4l_PUrwgtDn"]->Fill( m4lMET, aWeight*purwgtDn/purwgtNo );
+          histo1d_["2E_m4l_prefireUp"]->Fill( m4lMET, aWeight*prefireUp/prefireNo );
+          histo1d_["2E_m4l_prefireDn"]->Fill( m4lMET, aWeight*prefireDn/prefireNo );
         }
       } else if ( passDPhi && !passRatioPt ) {
         histo1d_["2E_antiRpt_MM_pt"]->Fill( lvecMa.pt(), aWeight );
@@ -1911,6 +2334,14 @@ void MergedEMuCRanalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
         histo1d_["2E_antiRpt_mt_xFF_dn"]->Fill( mtlllMET, aWeight*(ffMM-std::min(ciMM[0],ffMM)) );
         histo1d_["2E_antiRpt_mt_xFF_JESup"]->Fill( mtlllMETjesUp, aWeight*ffMM );
         histo1d_["2E_antiRpt_mt_xFF_JESdn"]->Fill( mtlllMETjesDn, aWeight*ffMM );
+
+        // eta hypothesis variations
+        histo1d_["2E_antiRpt_m4l"]->Fill( m4lMET, aWeight );
+        histo1d_["2E_antiRpt_m4l_xFF"]->Fill( m4lMET, aWeight*ffMM );
+        histo1d_["2E_antiRpt_m4l_xFF_up"]->Fill( m4lMET, aWeight*(ffMM+ciMM[0]) );
+        histo1d_["2E_antiRpt_m4l_xFF_dn"]->Fill( m4lMET, aWeight*(ffMM-std::min(ciMM[0],ffMM)) );
+        histo1d_["2E_antiRpt_m4l_xFF_JESup"]->Fill( m4lMETjesUp, aWeight*ffMM );
+        histo1d_["2E_antiRpt_m4l_xFF_JESdn"]->Fill( m4lMETjesDn, aWeight*ffMM );
       } else if ( passDPhiCR && passRatioPt ) {
         histo1d_["2E_CRdphi_MM_pt"]->Fill( lvecMa.pt(), aWeight );
         histo1d_["2E_CRdphi_MM_eta"]->Fill( lvecMa.eta(), aWeight );

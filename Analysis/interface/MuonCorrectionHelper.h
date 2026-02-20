@@ -57,6 +57,11 @@ public:
                    const std::vector<pat::MuonRef>& highPtMuons,
                    const std::vector<pat::MuonRef>& highPtTrackerMuons,
                    const reco::BeamSpot& bs);
+  void modifiedIsoWithVal(std::map<pat::MuonRef,float>& highPtMuonMap,
+                          std::map<pat::MuonRef,float>& highPtTrackerMuonMap,
+                          const std::vector<pat::MuonRef>& highPtMuons,
+                          const std::vector<pat::MuonRef>& highPtTrackerMuons,
+                          const reco::BeamSpot& bs);
   void nonHighPtMuonIso(std::vector<pat::MuonRef>& nonHighPtMuons,
                         std::vector<pat::MuonRef>& nonHighPtMuonsVLiso,
                         std::map<pat::MuonRef,float>& nonHighPtIsos,
