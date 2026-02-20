@@ -10,13 +10,14 @@
 #include "/u/user/sako/ModHEEP/CMSSW_10_6_29/work/tdrstyle.C"
 #include "/u/user/sako/ModHEEP/CMSSW_10_6_29/work/CMS_lumi.C"
 
-void drawlimit_PAS(TString isZA) {
+void drawlimit_PAS_supp(TString isZA,TString channel) {
   setTDRStyle();
   // gStyle->SetLineWidth(2);
   TString era = "run2";
 
   writeExtraText = true;       // if extra text
-  extraText  = "Preliminary";  // default extra text is "Preliminary"
+  extraText  = "";  // default extra text is "Preliminary"
+  customCmsTextOffset = 0.02;
 
   if (era=="20UL16APV") {
     lumi_sqrtS = "2016 (13 TeV)";
@@ -60,7 +61,7 @@ void drawlimit_PAS(TString isZA) {
   canvas1->SetBorderMode(0);
   canvas1->SetFrameFillStyle(0);
   canvas1->SetFrameBorderMode(0);
-  canvas1->SetLeftMargin( L/W+0.01 );
+  canvas1->SetLeftMargin( 0.9*L/W );
   canvas1->SetRightMargin( R/W );
   canvas1->SetTopMargin( T/H );
   canvas1->SetBottomMargin( B/H );
@@ -85,8 +86,8 @@ void drawlimit_PAS(TString isZA) {
     canvas->SaveAs(name.c_str());
   };
 
-  auto retrieve = [&isZA] (const TString& atype, const TString& hmass, const TString& amass, const TString& quant) -> double {
-    TString filename = TString("./")+isZA+amass+"/"+hmass+"/higgsCombine.X"+hmass+isZA+amass+".HybridNew.mH"+hmass;
+  auto retrieve = [&isZA,&channel] (const TString& atype, const TString& hmass, const TString& amass, const TString& quant) -> double {
+    TString filename = TString("./")+isZA+amass+"_"+channel+"/"+hmass+"/higgsCombine.X"+hmass+isZA+amass+".HybridNew.mH"+hmass;
 
     if (quant!="")
       filename += ".quant"+quant;
@@ -212,15 +213,15 @@ void drawlimit_PAS(TString isZA) {
   TGraphAsymmErrors* gr1sig = nullptr;
   TGraphAsymmErrors* gr2sig = nullptr;
 
-  for (int i = 0; i < cols; ++i) {
-    for (int j = 0; j < rows; ++j) {
+  for (int j = 0; j < rows; ++j) {
+    for (int i = 0; i < cols; ++i) {
       double xmin = leftmargin + static_cast<double>(i)*(1.-leftmargin-rightmargin)/cols;
       double xmax = leftmargin + static_cast<double>(i+1)*(1.-leftmargin-rightmargin)/cols;
       double ymin = bottommargin + static_cast<double>(rows-j-1)*(1.-topmargin-bottommargin)/rows;
       double ymax = bottommargin + static_cast<double>(rows-j)*(1.-topmargin-bottommargin)/rows;
 
       if (i==0)
-        xmin -= 0.3*leftmargin;
+        xmin -= 0.4*leftmargin;
       if (j==rows-1)
         ymin -= 0.3*bottommargin;
 
@@ -240,7 +241,7 @@ void drawlimit_PAS(TString isZA) {
       pad->SetFrameBorderMode(0);
 
       if (i==0)
-        pad->SetLeftMargin(1.3*leftmargin);
+        pad->SetLeftMargin(1.4*leftmargin);
       //if (i==cols-1)
       //  pad->SetRightMargin(rightmargin);
 
@@ -261,9 +262,9 @@ void drawlimit_PAS(TString isZA) {
 
       TString Ychar = isZA=="A" ? "Y" : "Z";
 
-      gr2->SetFillColor(kOrange);
-      gr2->SetLineColor(kOrange);
-      gr2->SetMarkerColor(kOrange);
+      gr2->SetFillColor(TColor::GetColor("#ffcc00"));
+      gr2->SetLineColor(TColor::GetColor("#ffcc00"));
+      gr2->SetMarkerColor(TColor::GetColor("#ffcc00"));
       gr2->SetMarkerSize(0);
       //gr2->GetXaxis()->SetTitle("M_{X} [GeV]");
       //gr2->GetXaxis()->SetTitleSize(0.05);
@@ -271,19 +272,22 @@ void drawlimit_PAS(TString isZA) {
       //gr2->GetYaxis()->SetTitleOffset(1.1);
       //gr2->GetXaxis()->SetTitleOffset(1.0);
       //gr2->GetYaxis()->SetTitleSize(0.04);
-      gr2->GetYaxis()->SetLabelSize(0.09);
+      gr2->GetYaxis()->SetLabelSize(0.1);
       gr2->GetXaxis()->SetLabelSize(0.1);
 
-      gr2->SetMaximum(20.);
+      if (j==rows-1)
+        gr2->GetYaxis()->SetLabelSize(0.09);
+
+      gr2->SetMaximum(400.);
       gr2->SetMinimum(0.02);
 
       TAxis *axis = gr2->GetXaxis();
       axis->SetLimits(250.,1999.9);
       axis->SetNdivisions(504);
 
-      gr1->SetFillColor(kGreen+1);
-      gr1->SetLineColor(kGreen+1);
-      gr1->SetMarkerColor(kGreen+1);
+      gr1->SetFillColor(TColor::GetColor("#228b22"));
+      gr1->SetLineColor(TColor::GetColor("#228b22"));
+      gr1->SetMarkerColor(TColor::GetColor("#228b22"));
       gr1->SetMarkerSize(0);
       gr2->Draw("a4"); // a3
       gr1->Draw("same4"); // samea3l
@@ -308,14 +312,16 @@ void drawlimit_PAS(TString isZA) {
       TString amassDecimal = amassvec.at(seq);
       amassDecimal.ReplaceAll("p",".");
 
-      auto atext = std::make_unique<TPaveText>(0.55,0.75,0.95,0.95,"NDC");
+      auto atext = std::make_unique<TPaveText>(0.45,0.75,0.95,0.95,"NDC");
       atext->SetBorderSize(0);
       atext->SetFillColor(0);
       atext->SetFillStyle(0);
       TString astr = "M_{Y} = "+amassDecimal+" GeV";
       atext->AddText(astr);
       ((TText*)atext->GetListOfLines()->Last())->SetTextColor(kBlack);
-      // ((TText*)atext->GetListOfLines()->Last())->SetTextAlign(12);
+      ((TText*)atext->GetListOfLines()->Last())->SetTextFont(42);
+      ((TText*)atext->GetListOfLines()->Last())->SetTextSize(0.1);
+      ((TText*)atext->GetListOfLines()->Last())->SetTextAlign(31);
       atext->Draw();
       atext.release();
 
@@ -327,7 +333,7 @@ void drawlimit_PAS(TString isZA) {
 
   canvas1->cd();
 
-  auto legend = std::make_unique<TLegend>(0.54,0.8,0.99,0.9);
+  auto legend = std::make_unique<TLegend>(0.45,0.78,0.99,0.9);
   legend->SetNColumns(2);
   legend->SetBorderSize(0);
   legend->SetFillStyle(0);
@@ -337,6 +343,8 @@ void drawlimit_PAS(TString isZA) {
   //legend->AddEntry(grResolved.get(),"resolved median exp.");
   legend->AddEntry(gr1sig,"68% expected");
   legend->AddEntry(gr2sig,"95% expected");
+  legend->SetTextFont(42);
+  legend->SetTextSize(0.027);
   legend->Draw();
 
   auto btext = std::make_unique<TPaveText>(0.68,0.9,0.95,0.95,"NDC");
@@ -346,20 +354,45 @@ void drawlimit_PAS(TString isZA) {
   TString bstr = "95% CL upper limits";
   btext->AddText(bstr);
   ((TText*)btext->GetListOfLines()->Last())->SetTextColor(kBlack);
+  ((TText*)btext->GetListOfLines()->Last())->SetTextFont(42);
   btext->Draw();
 
-  auto ytext = std::make_unique<TPaveText>(0.0,0.4,0.4,0.92,"NDC");
+  auto ytext = std::make_unique<TPaveText>(0.0,isZA=="Z" ? 0.06 : 0.12,0.4,0.92,"NDC");
   ytext->SetBorderSize(0);
   ytext->SetFillColor(0);
   ytext->SetFillStyle(0);
   TString Ychar = isZA=="A" ? "Y" : "Z";
-  TString astr = "#sigma(pp#rightarrowX) #times B(X#rightarrow"+Ychar+"Y#rightarrow4l) [fb]";
+  TString channelStr;
+  if (channel=="el" && isZA=="A")
+    channelStr = "4\\mathrm{e}";
+  else if (channel=="mu" && isZA=="A")
+    channelStr = "4\\mu";
+  else if (channel=="el" && isZA=="Z")
+    channelStr = "2\\ell 2\\mathrm{e}";
+  else if (channel=="mu" && isZA=="Z")
+    channelStr = "2\\ell 2\\mu";
+
+  TString astr = "\\sigma(\\mathrm{pp}\\rightarrow\\mathrm{X}) \\times \\mathrm{B}(\\mathrm{X}\\rightarrow\\mathrm{"+Ychar+"Y}\\rightarrow"+channelStr+")\\:[\\mathrm{fb}]";
   ytext->AddText(astr);
   ((TText*)ytext->GetListOfLines()->Last())->SetTextColor(kBlack);
   ((TText*)ytext->GetListOfLines()->Last())->SetTextFont(42);
   ((TText*)ytext->GetListOfLines()->Last())->SetTextAngle(90);
   ((TText*)ytext->GetListOfLines()->Last())->SetTextAlign(13);
+  ((TText*)ytext->GetListOfLines()->Last())->SetTextSize(0.035);
   ytext->Draw();
+
+  auto ytext2 = std::make_unique<TPaveText>(0.0,isZA=="Z" ? 0.21 : 0.25,0.4,isZA=="Z" ? 0.36 : 0.4,"NDC");
+  ytext2->SetBorderSize(0);
+  ytext2->SetFillColor(0);
+  ytext2->SetFillStyle(0);
+  TString a2str = "Upper limits on";
+  ytext2->AddText(a2str);
+  ((TText*)ytext2->GetListOfLines()->Last())->SetTextColor(kBlack);
+  ((TText*)ytext2->GetListOfLines()->Last())->SetTextFont(42);
+  ((TText*)ytext2->GetListOfLines()->Last())->SetTextAngle(90);
+  ((TText*)ytext2->GetListOfLines()->Last())->SetTextAlign(13);
+  ((TText*)ytext2->GetListOfLines()->Last())->SetTextSize(0.035);
+  ytext2->Draw();
 
   auto xtext = std::make_unique<TPaveText>(0.8,0.01,0.97,0.055,"NDC");
   xtext->SetBorderSize(0);
@@ -373,100 +406,7 @@ void drawlimit_PAS(TString isZA) {
 
   canvas1->Update();  // Refresh canvas
 
-  SaveAs(canvas1,std::string((TString("limit_")+isZA+"_PAS_"+era+".pdf").Data()));
+  SaveAs(canvas1,std::string((TString("limit1D_")+isZA+"_"+channel+"_aux_"+era+".png").Data()));
 
   return;
-
-
-
-
-
-
-
-  /*auto gr1 = graph1sig();
-  auto gr2 = graph2sig();
-  //auto grMerged = graphNominal("merged");
-  //auto grResolved = graphNominal("resolved");
-  auto grNominal = graphNominal("","");
-  auto grNominalExp = graphNominal("","0.500");
-
-//  canvas1->SetLogx();
-  canvas1->SetLogy();
-
-  TString Ychar = isZA=="A" ? "Y" : "Z";
-
-  gr2->SetFillColor(kOrange);
-  gr2->SetLineColor(kOrange);
-  gr2->SetMarkerColor(kOrange);
-  gr2->SetMarkerSize(0);
-  gr2->GetXaxis()->SetTitle("M_{X} [GeV]");
-  gr2->GetXaxis()->SetTitleSize(0.05);
-  gr2->GetYaxis()->SetTitle("#sigma(pp#rightarrowX) #times B(X#rightarrow"+Ychar+"Y#rightarrow4l) [fb]");
-  gr2->GetYaxis()->SetTitleOffset(1.1);
-  gr2->GetXaxis()->SetTitleOffset(1.0);
-  gr2->GetYaxis()->SetTitleSize(0.04);
-  gr2->GetYaxis()->SetLabelSize(0.04);
-  gr2->GetXaxis()->SetLabelSize(0.04);
-
-  gr2->SetMaximum(20.);
-  gr2->SetMinimum(0.01);
-
-  TAxis *axis = gr2->GetXaxis();
-  axis->SetLimits(250.,2000.);
-
-  gr1->SetFillColor(kGreen+1);
-  gr1->SetLineColor(kGreen+1);
-  gr1->SetMarkerColor(kGreen+1);
-  gr1->SetMarkerSize(0);
-  gr2->Draw("a4"); // a3
-  gr1->Draw("same4"); // samea3l
-
-  grNominal->SetLineColor(kBlack);
-  grNominal->SetMarkerSize(0);
-  grNominal->SetLineWidth(2);
-  grNominal->Draw("sameC");
-  grNominalExp->SetLineStyle(kDashed);
-  grNominalExp->SetMarkerSize(0);
-  grNominalExp->SetLineWidth(2);
-  grNominalExp->SetLineColor(kBlack);
-  grNominalExp->Draw("sameC");
-
-  auto legend = std::make_unique<TLegend>(0.6,0.62,0.92,0.85);
-  legend->SetBorderSize(0);
-  legend->SetFillStyle(0);
-  legend->AddEntry(grNominal.get(),"Median observed");
-  legend->AddEntry(grNominalExp.get(),"Median expected");
-  //legend->AddEntry(grMerged.get(),"merged median exp.");
-  //legend->AddEntry(grResolved.get(),"resolved median exp.");
-  legend->AddEntry(gr1.get(),"68% expected");
-  legend->AddEntry(gr2.get(),"95% expected");
-  legend->Draw();
-
-  auto btext = std::make_unique<TPaveText>(0.6,0.85,0.92,0.9,"NDC");
-  btext->SetBorderSize(0);
-  btext->SetFillColor(0);
-  btext->SetFillStyle(0);
-  TString bstr = "95% CL upper limits";
-  btext->AddText(bstr);
-  ((TText*)btext->GetListOfLines()->Last())->SetTextColor(kBlack);
-  btext->Draw();
-
-  TString amassDecimal = amass;
-  amassDecimal.ReplaceAll("p",".");
-
-  auto atext = std::make_unique<TPaveText>(0.68,0.15,0.92,0.2,"NDC");
-  atext->SetBorderSize(0);
-  atext->SetFillColor(0);
-  atext->SetFillStyle(0);
-  TString astr = "M_{Y} = "+amassDecimal+" GeV";
-  atext->AddText(astr);
-  ((TText*)atext->GetListOfLines()->Last())->SetTextColor(kBlack);
-  // ((TText*)atext->GetListOfLines()->Last())->SetTextAlign(12);
-  atext->Draw();
-
-  canvas1->cd();
-
-  SaveAs(canvas1,std::string((TString("limit_")+isZA+"_PAS_"+era+".pdf").Data()));
-
-  return;*/
 }
