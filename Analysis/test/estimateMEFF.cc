@@ -7,12 +7,30 @@
 #include "/home/ko/Desktop/Study/Zprime/ZprimeTo4l/work/tdrstyle.C"
 #include "/home/ko/Desktop/Study/Zprime/ZprimeTo4l/work/CMS_lumi.C"
 
+static double retrieveLumi(const std::string& anlyzrEra) {
+  if (anlyzrEra=="20UL16APV")
+    return 19.5;
+  else if (anlyzrEra=="20UL16" || anlyzrEra=="")
+    return 16.8;
+  else if (anlyzrEra=="20UL17")
+    return 41.48;
+  else if (anlyzrEra=="20UL18")
+    return 59.83;
+
+  return 0.;
+}
+
 void estimateMEFF(TString era) {
   setTDRStyle();
   gStyle->SetOptFit(0);
 
   writeExtraText = true;       // if extra text
-  extraText  = "Work in progress";  // default extra text is "Preliminary"
+  extraText  = "Preliminary";  // default extra text is "Preliminary"
+
+  static constexpr double WZxsec = 5.213; // 0.65*62.78;
+  static constexpr double ZZxsec = 13.81;
+  static TString postfix = era;
+  TString fname = era;
 
   if (era=="20UL16APV") {
     lumi_sqrtS = "2016 (13 TeV)";
@@ -20,12 +38,18 @@ void estimateMEFF(TString era) {
   } else if (era=="20UL16") {
     lumi_sqrtS = "2016 (13 TeV)";
     lumi_13TeV = "16.8 fb^{-1}";
+    postfix = "";
   } else if (era=="20UL17") {
     lumi_sqrtS = "2017 (13 TeV)";
     lumi_13TeV = "41.48 fb^{-1}";
   } else if (era=="20UL18") {
     lumi_sqrtS = "2018 (13 TeV)";
     lumi_13TeV = "59.83 fb^{-1}";
+  } else if (era=="run2") {
+    lumi_sqrtS = "";
+    lumi_13TeV = "137.6 fb^{-1}";
+    postfix = "";
+    fname = "20UL16";
   } else {
     std::cout << "check era..." << std::endl;
   }
@@ -48,8 +72,37 @@ void estimateMEFF(TString era) {
   float L = 0.12*W_ref;
   float R = 0.04*W_ref;
 
-  // EB
-  TFile* datafile = new TFile("MergedEleCR_"+era+"_data.root","READ");
+  TFile* datafile = new TFile("EleAnalyzer_"+fname+"_data.root","READ");
+  TFile* WZfile = new TFile("EleAnalyzer_"+fname+"_WZFXFX.root","READ");
+  TFile* ZZfile = new TFile("EleAnalyzer_"+fname+"_ZZ.root","READ");
+
+  TFile* datafile1 = new TFile("EleAnalyzer_20UL16APV_data.root","READ");
+  TFile* WZfile1 = new TFile("EleAnalyzer_20UL16APV_WZFXFX.root","READ");
+  TFile* ZZfile1 = new TFile("EleAnalyzer_20UL16APV_ZZ.root","READ");
+
+  TFile* datafile2 = new TFile("EleAnalyzer_20UL17_data.root","READ");
+  TFile* WZfile2 = new TFile("EleAnalyzer_20UL17_WZFXFX.root","READ");
+  TFile* ZZfile2 = new TFile("EleAnalyzer_20UL17_ZZ.root","READ");
+
+  TFile* datafile3 = new TFile("EleAnalyzer_20UL18_data.root","READ");
+  TFile* WZfile3 = new TFile("EleAnalyzer_20UL18_WZFXFX.root","READ");
+  TFile* ZZfile3 = new TFile("EleAnalyzer_20UL18_ZZ.root","READ");
+
+  TFile* datafile4 = new TFile("MuAnalyzer_"+fname+"_data.root","READ");
+  TFile* WZfile4 = new TFile("MuAnalyzer_"+fname+"_WZFXFX.root","READ");
+  TFile* ZZfile4 = new TFile("MuAnalyzer_"+fname+"_ZZ.root","READ");
+
+  TFile* datafile5 = new TFile("MuAnalyzer_20UL16APV_data.root","READ");
+  TFile* WZfile5 = new TFile("MuAnalyzer_20UL16APV_WZFXFX.root","READ");
+  TFile* ZZfile5 = new TFile("MuAnalyzer_20UL16APV_ZZ.root","READ");
+
+  TFile* datafile6 = new TFile("MuAnalyzer_20UL17_data.root","READ");
+  TFile* WZfile6 = new TFile("MuAnalyzer_20UL17_WZFXFX.root","READ");
+  TFile* ZZfile6 = new TFile("MuAnalyzer_20UL17_ZZ.root","READ");
+
+  TFile* datafile7 = new TFile("MuAnalyzer_20UL18_data.root","READ");
+  TFile* WZfile7 = new TFile("MuAnalyzer_20UL18_WZFXFX.root","READ");
+  TFile* ZZfile7 = new TFile("MuAnalyzer_20UL18_ZZ.root","READ");
 
   auto estimateCenter = [] (const std::vector<double>& vec) -> std::vector<double> {
     std::vector<double> out;
@@ -73,6 +126,43 @@ void estimateMEFF(TString era) {
     return std::move(out);
   };
 
+  auto rebinnedHisto = [&] (TFile* afile, const TString& aname, std::vector<double>& binning, const TString& aEra, double xsec=0.) -> TH1D* {
+    TH1D* ahist = (TH1D*)afile->Get(aname)->Clone();
+    const int nbin = binning.size()-1;
+    TH1D* rebin = (TH1D*)ahist->Rebin(nbin,TString(ahist->GetName())+"_rebin",&(binning[0]));
+
+    if (xsec > 0.) {
+      const double sumwgt = ((TH1D*)afile->Get("evtCounter/h_sumW"))->GetBinContent(1);
+      rebin->Scale(xsec*retrieveLumi(aEra.Data())*1000./sumwgt);
+    }
+
+    return rebin;
+  };
+
+  auto subtractHist = [] (const TH1D* ahist, const TH1D* bhist) -> TH1D* {
+    TH1D* result = (TH1D*)ahist->Clone();
+
+    for (unsigned ibin = 0; ibin < ahist->GetNbinsX()+2; ibin++) {
+      if (ahist->GetBinContent(ibin)==0.)
+        continue;
+
+      result->SetBinContent(ibin, std::max( ahist->GetBinContent(ibin) - bhist->GetBinContent(ibin), 0.) );
+      result->SetBinError(ibin, result->GetBinContent(ibin)==0. ? 0. : std::hypot(ahist->GetBinError(ibin), bhist->GetBinError(ibin)) );
+    }
+
+    return result;
+  };
+
+  auto subtractPrompt = [&] (const TString& aname, std::vector<double>& binning, TFile* adata, TFile* aWZ, TFile* aZZ, const TString& analyzerName, const TString& aEra) -> TH1D* {
+    TH1D* dataHist = rebinnedHisto(adata,analyzerName+"Data/"+aname,binning,aEra);
+
+    TH1D* WZhist = rebinnedHisto(aWZ,analyzerName+aEra+"/"+aname,binning,aEra,WZxsec);
+    TH1D* ZZhist = rebinnedHisto(aZZ,analyzerName+aEra+"/"+aname,binning,aEra,ZZxsec);
+
+    return subtractHist( subtractHist( dataHist, WZhist ), ZZhist );
+  };
+
+/*
   TH1D* SSnum = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_SSCR_EB_mixedME")->Clone();
   TH1D* SSdenom = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_SSCR_EB_antiME")->Clone();
   std::vector<double> xbinsSS = {0, 50, 60, 70, 100, 150, 250, 500, 1000};
@@ -82,8 +172,56 @@ void estimateMEFF(TString era) {
   TH1D* SSdenom_rebin = (TH1D*)SSdenom->Rebin(nbinsSS, "2E_Et_SSCR_EB_antiME", &(xbinsSS[0]));
 
   SSnum_rebin->Divide( SSdenom_rebin );
+*/
 
-  TH1D* OSnum = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_OSCR_EB_mixedME")->Clone();
+  std::vector<double> xbinsSS = {0,50,55,60,75,100,150,300,500}; //{0,50,60,70,80,90,100,120,150,200,500};
+  std::vector<double> xcenSS = estimateCenter(xbinsSS);
+  const int nbinsSS = xbinsSS.size()-1;
+
+  TH1D* subtracted_EB_SSnumer = subtractPrompt("3E_Et_Ztag_EB_CRME",xbinsSS,datafile,WZfile,ZZfile,"mergedEleCRanalyzer",postfix);
+  TH1D* subtracted_EB_SSdenom = subtractPrompt("3E_Et_Ztag_EB_antiME",xbinsSS,datafile,WZfile,ZZfile,"mergedEleCRanalyzer",postfix);
+
+  TH1D* subtracted_EB_SSnumer1 = subtractPrompt("3E_Et_Ztag_EB_CRME",xbinsSS,datafile1,WZfile1,ZZfile1,"mergedEleCRanalyzer","20UL16APV");
+  TH1D* subtracted_EB_SSdenom1 = subtractPrompt("3E_Et_Ztag_EB_antiME",xbinsSS,datafile1,WZfile1,ZZfile1,"mergedEleCRanalyzer","20UL16APV");
+
+  TH1D* subtracted_EB_SSnumer2 = subtractPrompt("3E_Et_Ztag_EB_CRME",xbinsSS,datafile2,WZfile2,ZZfile2,"mergedEleCRanalyzer","20UL17");
+  TH1D* subtracted_EB_SSdenom2 = subtractPrompt("3E_Et_Ztag_EB_antiME",xbinsSS,datafile2,WZfile2,ZZfile2,"mergedEleCRanalyzer","20UL17");
+
+  TH1D* subtracted_EB_SSnumer3 = subtractPrompt("3E_Et_Ztag_EB_CRME",xbinsSS,datafile3,WZfile3,ZZfile3,"mergedEleCRanalyzer","20UL18");
+  TH1D* subtracted_EB_SSdenom3 = subtractPrompt("3E_Et_Ztag_EB_antiME",xbinsSS,datafile3,WZfile3,ZZfile3,"mergedEleCRanalyzer","20UL18");
+
+  subtracted_EB_SSnumer->Add(subtracted_EB_SSnumer1);
+  subtracted_EB_SSnumer->Add(subtracted_EB_SSnumer2);
+  subtracted_EB_SSnumer->Add(subtracted_EB_SSnumer3);
+  subtracted_EB_SSdenom->Add(subtracted_EB_SSdenom1);
+  subtracted_EB_SSdenom->Add(subtracted_EB_SSdenom2);
+  subtracted_EB_SSdenom->Add(subtracted_EB_SSdenom3);
+
+  TH1D* subtracted_Mu_SSnumer = subtractPrompt("2M_Et_Ztag_EB_CRME",xbinsSS,datafile4,WZfile4,ZZfile4,"mergedEMuCRanalyzer",postfix);
+  TH1D* subtracted_Mu_SSdenom = subtractPrompt("2M_Et_Ztag_EB_antiME",xbinsSS,datafile4,WZfile4,ZZfile4,"mergedEMuCRanalyzer",postfix);
+
+  TH1D* subtracted_Mu_SSnumer1 = subtractPrompt("2M_Et_Ztag_EB_CRME",xbinsSS,datafile5,WZfile5,ZZfile5,"mergedEMuCRanalyzer","20UL16APV");
+  TH1D* subtracted_Mu_SSdenom1 = subtractPrompt("2M_Et_Ztag_EB_antiME",xbinsSS,datafile5,WZfile5,ZZfile5,"mergedEMuCRanalyzer","20UL16APV");
+
+  TH1D* subtracted_Mu_SSnumer2 = subtractPrompt("2M_Et_Ztag_EB_CRME",xbinsSS,datafile6,WZfile6,ZZfile6,"mergedEMuCRanalyzer","20UL17");
+  TH1D* subtracted_Mu_SSdenom2 = subtractPrompt("2M_Et_Ztag_EB_antiME",xbinsSS,datafile6,WZfile6,ZZfile6,"mergedEMuCRanalyzer","20UL17");
+
+  TH1D* subtracted_Mu_SSnumer3 = subtractPrompt("2M_Et_Ztag_EB_CRME",xbinsSS,datafile7,WZfile7,ZZfile7,"mergedEMuCRanalyzer","20UL18");
+  TH1D* subtracted_Mu_SSdenom3 = subtractPrompt("2M_Et_Ztag_EB_antiME",xbinsSS,datafile7,WZfile7,ZZfile7,"mergedEMuCRanalyzer","20UL18");
+
+  subtracted_Mu_SSnumer->Add(subtracted_Mu_SSnumer1);
+  subtracted_Mu_SSnumer->Add(subtracted_Mu_SSnumer2);
+  subtracted_Mu_SSnumer->Add(subtracted_Mu_SSnumer3);
+  subtracted_Mu_SSdenom->Add(subtracted_Mu_SSdenom1);
+  subtracted_Mu_SSdenom->Add(subtracted_Mu_SSdenom2);
+  subtracted_Mu_SSdenom->Add(subtracted_Mu_SSdenom3);
+
+  subtracted_EB_SSnumer->Add(subtracted_Mu_SSnumer);
+  subtracted_EB_SSdenom->Add(subtracted_Mu_SSdenom);
+
+  subtracted_EB_SSnumer->Divide( subtracted_EB_SSdenom );
+
+/*  TH1D* OSnum = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_OSCR_EB_mixedME")->Clone();
   TH1D* OSdenom = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_OSCR_EB_antiME")->Clone();
   std::vector<double> xbinsOS = {0, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200,
                                  225, 250, 275, 300, 400, 500, 700, 1000};
@@ -92,16 +230,16 @@ void estimateMEFF(TString era) {
   TH1D* OSnum_rebin = (TH1D*)OSnum->Rebin(nbinsOS, "2E_Et_OSCR_EB_mixedME", &(xbinsOS[0]));
   TH1D* OSdenom_rebin = (TH1D*)OSdenom->Rebin(nbinsOS, "2E_Et_OSCR_EB_antiME", &(xbinsOS[0]));
 
-  OSnum_rebin->Divide( OSdenom_rebin );
+  OSnum_rebin->Divide( OSdenom_rebin );*/
 
-  TF1* ssboth = new TF1("ssboth","[0]",50,1000);
+  TF1* ssboth = new TF1("ssboth","[0]",50,500);
   ssboth->SetLineColor(kBlue);
   ssboth->SetLineWidth(2);
   ssboth->SetLineStyle(2);
-  TFitResultPtr fitSS = SSnum_rebin->Fit(ssboth,"RS");
+  TFitResultPtr fitSS = subtracted_EB_SSnumer->Fit(ssboth,"RS");
   fitSS->SetName("fitSS");
   double ciSS[nbinsSS];
-  fitSS->GetConfidenceIntervals(nbinsSS,1,0,&(xcenSS[0]),ciSS,0.95,false); // 0.6827
+  fitSS->GetConfidenceIntervals(nbinsSS,1,0,&(xcenSS[0]),ciSS,0.68,false); // 0.6827
   std::vector<double> xbinwSS = estimateWidth(xbinsSS);
   double ybinSS[nbinsSS];
 
@@ -113,20 +251,59 @@ void estimateMEFF(TString era) {
   errSS->SetFillColor(kBlue);
   errSS->SetFillStyle(3004);
 
-  TH1D* OSnumEta = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_eta_OSCR_EB_mixedME")->Clone();
+/*  TH1D* OSnumEta = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_eta_OSCR_EB_mixedME")->Clone();
   TH1D* OSdenomEta = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_eta_OSCR_EB_antiME")->Clone();
 
-  OSnumEta->Divide( OSdenomEta );
+  OSnumEta->Divide( OSdenomEta );*/
+  std::vector<double> xbinsEta = {-2.5,-1.5,-1.25,-1.,-0.75,-0.5,-0.25,0.,0.25,0.5,0.75,1.,1.25,1.5,2.5};
+  std::vector<double> xcenEta = estimateCenter(xbinsEta);
+  std::vector<double> xbinwEta = estimateWidth(xbinsEta);
+  const int nbinsEta = xbinsEta.size()-1;
 
-  TH1D* SSnumEta = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_mixedME_SSll_eta")->Clone();
-  TH1D* SSdenomEta = (TH1D*)datafile->Get("mergedEleCRanalyzerData/2E_antiME_SSll_eta")->Clone();
-  SSdenomEta->Rebin(SSdenomEta->GetNbinsX()/SSnumEta->GetNbinsX());
-  SSdenomEta->Rebin(5);
-  SSnumEta->Rebin(5);
+  TH1D* subtracted_etaE_SSnumer = subtractPrompt("3E_eta_Ztag_EB_CRME",xbinsEta,datafile,WZfile,ZZfile,"mergedEleCRanalyzer",postfix);
+  TH1D* subtracted_etaE_SSdenom = subtractPrompt("3E_eta_Ztag_EB_antiME",xbinsEta,datafile,WZfile,ZZfile,"mergedEleCRanalyzer",postfix);
 
-  SSnumEta->Divide( SSdenomEta );
+  TH1D* subtracted_etaE_SSnumer1 = subtractPrompt("3E_eta_Ztag_EB_CRME",xbinsEta,datafile1,WZfile1,ZZfile1,"mergedEleCRanalyzer","20UL16APV");
+  TH1D* subtracted_etaE_SSdenom1 = subtractPrompt("3E_eta_Ztag_EB_antiME",xbinsEta,datafile1,WZfile1,ZZfile1,"mergedEleCRanalyzer","20UL16APV");
 
-  TH2D* OSnum2d = (TH2D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_eta_OSCR_EB_mixedME")->Clone();
+  TH1D* subtracted_etaE_SSnumer2 = subtractPrompt("3E_eta_Ztag_EB_CRME",xbinsEta,datafile2,WZfile2,ZZfile2,"mergedEleCRanalyzer","20UL17");
+  TH1D* subtracted_etaE_SSdenom2 = subtractPrompt("3E_eta_Ztag_EB_antiME",xbinsEta,datafile2,WZfile2,ZZfile2,"mergedEleCRanalyzer","20UL17");
+
+  TH1D* subtracted_etaE_SSnumer3 = subtractPrompt("3E_eta_Ztag_EB_CRME",xbinsEta,datafile3,WZfile3,ZZfile3,"mergedEleCRanalyzer","20UL18");
+  TH1D* subtracted_etaE_SSdenom3 = subtractPrompt("3E_eta_Ztag_EB_antiME",xbinsEta,datafile3,WZfile3,ZZfile3,"mergedEleCRanalyzer","20UL18");
+
+  subtracted_etaE_SSnumer->Add(subtracted_etaE_SSnumer1);
+  subtracted_etaE_SSnumer->Add(subtracted_etaE_SSnumer2);
+  subtracted_etaE_SSnumer->Add(subtracted_etaE_SSnumer3);
+  subtracted_etaE_SSdenom->Add(subtracted_etaE_SSdenom1);
+  subtracted_etaE_SSdenom->Add(subtracted_etaE_SSdenom2);
+  subtracted_etaE_SSdenom->Add(subtracted_etaE_SSdenom3);
+
+  TH1D* subtracted_etaM_SSnumer = subtractPrompt("2M_eta_Ztag_EB_CRME",xbinsEta,datafile4,WZfile4,ZZfile4,"mergedEMuCRanalyzer",postfix);
+  TH1D* subtracted_etaM_SSdenom = subtractPrompt("2M_eta_Ztag_EB_antiME",xbinsEta,datafile4,WZfile4,ZZfile4,"mergedEMuCRanalyzer",postfix);
+
+  TH1D* subtracted_etaM_SSnumer1 = subtractPrompt("2M_eta_Ztag_EB_CRME",xbinsEta,datafile5,WZfile5,ZZfile5,"mergedEMuCRanalyzer","20UL16APV");
+  TH1D* subtracted_etaM_SSdenom1 = subtractPrompt("2M_eta_Ztag_EB_antiME",xbinsEta,datafile5,WZfile5,ZZfile5,"mergedEMuCRanalyzer","20UL16APV");
+
+  TH1D* subtracted_etaM_SSnumer2 = subtractPrompt("2M_eta_Ztag_EB_CRME",xbinsEta,datafile6,WZfile6,ZZfile6,"mergedEMuCRanalyzer","20UL17");
+  TH1D* subtracted_etaM_SSdenom2 = subtractPrompt("2M_eta_Ztag_EB_antiME",xbinsEta,datafile6,WZfile6,ZZfile6,"mergedEMuCRanalyzer","20UL17");
+
+  TH1D* subtracted_etaM_SSnumer3 = subtractPrompt("2M_eta_Ztag_EB_CRME",xbinsEta,datafile7,WZfile7,ZZfile7,"mergedEMuCRanalyzer","20UL18");
+  TH1D* subtracted_etaM_SSdenom3 = subtractPrompt("2M_eta_Ztag_EB_antiME",xbinsEta,datafile7,WZfile7,ZZfile7,"mergedEMuCRanalyzer","20UL18");
+
+  subtracted_etaM_SSnumer->Add(subtracted_etaM_SSnumer1);
+  subtracted_etaM_SSnumer->Add(subtracted_etaM_SSnumer2);
+  subtracted_etaM_SSnumer->Add(subtracted_etaM_SSnumer3);
+  subtracted_etaM_SSdenom->Add(subtracted_etaM_SSdenom1);
+  subtracted_etaM_SSdenom->Add(subtracted_etaM_SSdenom2);
+  subtracted_etaM_SSdenom->Add(subtracted_etaM_SSdenom3);
+
+  subtracted_etaE_SSnumer->Add(subtracted_etaM_SSnumer);
+  subtracted_etaE_SSdenom->Add(subtracted_etaM_SSdenom);
+
+  subtracted_etaE_SSnumer->Divide( subtracted_etaE_SSdenom );
+
+/*  TH2D* OSnum2d = (TH2D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_eta_OSCR_EB_mixedME")->Clone();
   TH2D* OSdenom2d = (TH2D*)datafile->Get("mergedEleCRanalyzerData/2E_Et_eta_OSCR_EB_antiME")->Clone();
 
   OSdenom2d->RebinX(2);
@@ -172,16 +349,16 @@ void estimateMEFF(TString era) {
 
   auto errOS = new TGraphErrors(nbinsOS,&(xcenOS[0]),ybinOS,&(xbinwOS[0]),ciOS);
   errOS->SetFillColor(kRed);
-  errOS->SetFillStyle(3005);
+  errOS->SetFillStyle(3005);*/
 
   // save file
   TFile* outfile = new TFile("MEFF_"+era+".root","RECREATE");
-  SSnum_rebin->Write();
-  OSnum2d->Write();
+  subtracted_EB_SSnumer->Write();
+//  OSnum2d->Write();
   ssboth->Write();
-  osboth->Write();
+//  osboth->Write();
   fitSS->Write();
-  fitOS->Write();
+//  fitOS->Write();
   outfile->Close();
 
   auto* canvas = new TCanvas("canvas","canvas",50,50,W,H);
@@ -198,28 +375,23 @@ void estimateMEFF(TString era) {
   canvas->SetTicky(0);
 
   // EB
-  auto legend = std::make_unique<TLegend>(0.8,0.75,0.95,0.9);
-  legend->SetBorderSize(0);
-  legend->AddEntry(SSnum_rebin,"SS");
-  legend->AddEntry(OSnum_rebin,"OS");
+//  auto legend = std::make_unique<TLegend>(0.8,0.75,0.95,0.9);
+//  legend->SetBorderSize(0);
+//  legend->AddEntry(subtracted_EB_SSnumer,"SS");
+//  legend->AddEntry(OSnum_rebin,"OS");
 
-  OSnum_rebin->GetYaxis()->SetRangeUser(0.,1.0);
-  OSnum_rebin->SetLineWidth(2);
-  OSnum_rebin->GetYaxis()->SetTitle("Fake factor");
-  OSnum_rebin->GetXaxis()->SetTitle("E_{T} [GeV]");
-  OSnum_rebin->SetStats(0);
-  OSnum_rebin->SetLineColor(kRed);
-  OSnum_rebin->Draw("E1");
-  osboth_projected->Draw("same");
-
-  SSnum_rebin->SetLineColor(kBlue);
-  SSnum_rebin->SetLineWidth(2);
-  SSnum_rebin->Draw("same&E1");
+  subtracted_EB_SSnumer->GetYaxis()->SetRangeUser(0.,2.0);
+  subtracted_EB_SSnumer->SetLineWidth(2);
+  subtracted_EB_SSnumer->GetYaxis()->SetTitle("Fake factor");
+  subtracted_EB_SSnumer->GetXaxis()->SetTitle("E_{T} [GeV]");
+  subtracted_EB_SSnumer->SetStats(0);
+  subtracted_EB_SSnumer->SetLineColor(kBlue);
+  subtracted_EB_SSnumer->Draw("E1");
   errSS->Draw("3");
-  errOS->Draw("3");
-  legend->Draw();
+//  errOS->Draw("3");
+//  legend->Draw();
 
-  TPaveText* textlow = new TPaveText(0.12,0.65,0.28,0.69,"NDC");
+  TPaveText* textlow = new TPaveText(0.75,0.8,0.95,0.95,"NDC");
   textlow->SetBorderSize(0);
   textlow->SetFillStyle(3025);
   textlow->SetFillColor(0);
@@ -229,18 +401,7 @@ void estimateMEFF(TString era) {
   ((TText*)textlow->GetListOfLines()->Last())->SetTextColor(kBlue);
   ((TText*)textlow->GetListOfLines()->Last())->SetTextAlign(12);
 
-  TPaveText* texthigh = new TPaveText(0.28,0.645,0.965,0.685,"NDC");
-  texthigh->SetBorderSize(0);
-  texthigh->SetFillColor(0);
-  texthigh->SetFillStyle(3025);
-  TString textoslow;
-  textoslow.Form("%.3f#pm%.3f + (%.3g#pm%.3g)#timesp_{T} + (%.3g#pm%.3g)/#surdE", osboth->GetParameter(0), osboth->GetParError(0),osboth->GetParameter(1), osboth->GetParError(1), osboth->GetParameter(2), osboth->GetParError(2));
-  texthigh->AddText(textoslow);
-  ((TText*)texthigh->GetListOfLines()->Last())->SetTextColor(kRed);
-  ((TText*)texthigh->GetListOfLines()->Last())->SetTextAlign(12);
-
   textlow->Draw();
-  texthigh->Draw();
 
   canvas->Update();
 
@@ -252,67 +413,42 @@ void estimateMEFF(TString era) {
   canvas->GetFrame()->Draw();
   canvas->SaveAs("MEFF_Et_"+era+".pdf");
 
-  OSnumEta->GetYaxis()->SetRangeUser(0.,1.0);
-  OSnumEta->SetLineWidth(2);
-  OSnumEta->GetYaxis()->SetTitle("Fake factor");
-  OSnumEta->GetXaxis()->SetTitle("#eta_{SC}");
-  OSnumEta->SetLineColor(kRed);
-  OSnumEta->Draw("E1");
-  SSnumEta->SetLineWidth(2);
-  SSnumEta->SetLineColor(kBlue);
-  SSnumEta->Draw("E1&same");
-  OSnumEta->Draw("E1&same");
-  legend->Draw();
-
-  double projectY = 65.;
-  TString formula_eta;
-  formula_eta.Form("[0]+[1]*%.3g+[2]*sqrt(cosh(x)/%.3g)",projectY,projectY);
-  TF1* osboth_eta = new TF1("osboth_eta",formula_eta,-1.4442,1.4442);
-  osboth_eta->SetLineColor(kRed);
-  osboth_eta->SetLineWidth(2);
-  osboth_eta->SetLineStyle(2);
-  osboth_eta->SetParameters(osboth->GetParameters());
-  osboth_eta->Draw("same");
-
-  const int binstart = OSnumEta->FindFixBin(-1.5);
-  const int binend = OSnumEta->FindFixBin(1.5);
-  const unsigned nbinsEta = binend-binstart+1;
-  std::vector<double> etaCenter, etaCenterXY, xbinwEta;
-  double ciOSeta[nbinsEta];
-
-  for (int bin=binstart; bin<=binend; bin++) {
-    etaCenter.push_back(OSnumEta->GetBinCenter(bin));
-    etaCenterXY.push_back(OSnumEta->GetBinCenter(bin));
-    etaCenterXY.push_back(projectY);
-    xbinwEta.push_back(0.);
-  }
-
-  fitOS->GetConfidenceIntervals(nbinsEta,2,1,&(etaCenterXY[0]),ciOSeta,0.95,false);
-  double ybinOSeta[nbinsEta];
-
-  for (unsigned idx = 0; idx < nbinsEta; idx++) {
-    ybinOSeta[idx] = osboth->Eval(etaCenter.at(idx),projectY);
-  }
-
-  auto errOSeta = new TGraphErrors(nbinsEta,&(etaCenter[0]),ybinOSeta,&(xbinwEta[0]),ciOSeta);
-  errOSeta->SetFillColor(kRed);
-  errOSeta->SetFillStyle(3005);
-  errOSeta->Draw("3");
+  subtracted_etaE_SSnumer->GetYaxis()->SetRangeUser(0.,2.0);
+  subtracted_etaE_SSnumer->GetYaxis()->SetTitle("Fake factor");
+  subtracted_etaE_SSnumer->GetXaxis()->SetTitle("#eta_{SC}");
+  subtracted_etaE_SSnumer->SetLineWidth(2);
+  subtracted_etaE_SSnumer->SetLineColor(kBlue);
+  subtracted_etaE_SSnumer->Draw("E1");
+//  legend->Draw();
 
   TF1* ssEta = new TF1("ssEta","[0]",-1.4442,1.4442);
   ssEta->SetLineColor(kBlue);
   ssEta->SetLineWidth(2);
   ssEta->SetLineStyle(2);
-  ssEta->SetParameters(ssboth->GetParameters());
+  TFitResultPtr fitSSEta = subtracted_etaE_SSnumer->Fit(ssEta,"RS");
   ssEta->Draw("same");
 
   double etaSS[2] = {-1.4442,1.4442};
+  double ciSSeta[nbinsEta];
+  fitSSEta->GetConfidenceIntervals(nbinsEta,1,0,&(xcenEta[0]),ciSSeta,0.68,false); // 0.6827
+
   double ybinSSeta[2] = {ssEta->GetParameter(0),ssEta->GetParameter(0)};
-  double ciSSeta[2] = {ciSS[0],ciSS[0]};
   auto errSSeta = new TGraphErrors(2,etaSS,ybinSSeta,&(xbinwEta[0]),ciSSeta);
   errSSeta->SetFillColor(kBlue);
   errSSeta->SetFillStyle(3004);
   errSSeta->Draw("3");
+
+  TPaveText* textlowEta = new TPaveText(0.75,0.8,0.95,0.95,"NDC");
+  textlowEta->SetBorderSize(0);
+  textlowEta->SetFillStyle(3025);
+  textlowEta->SetFillColor(0);
+  TString textsslowEta;
+  textsslowEta.Form(" %.3f#pm%.3f", ssEta->GetParameter(0), ssEta->GetParError(0));
+  textlowEta->AddText(textsslowEta);
+  ((TText*)textlowEta->GetListOfLines()->Last())->SetTextColor(kBlue);
+  ((TText*)textlowEta->GetListOfLines()->Last())->SetTextAlign(12);
+
+  textlowEta->Draw();
 
   CMS_lumi( canvas, iPeriod, iPos );
 
@@ -322,46 +458,6 @@ void estimateMEFF(TString era) {
   canvas->SaveAs("MEFF_eta_"+era+".pdf");
 
   CMS_lumi( canvas, iPeriod, iPos );
-
-  extraText = "Internal";
-
-  OSnum2d->Draw("col");
-  CMS_lumi( canvas, iPeriod, iPos );
-  canvas->SaveAs("FF_2d.png");
-
-  TF1* par0 = new TF1("par0","[0]",-1.5,1.5);
-  ((TH1D*)aSlices.At(0))->Fit(par0,"RS");
-  aSlices.At(0)->Draw("E1");
-  CMS_lumi( canvas, iPeriod, iPos );
-  canvas->Update();
-  canvas->RedrawAxis();
-  canvas->GetFrame()->Draw();
-  canvas->SaveAs("MEFF_slice0_"+era+".pdf");
-
-  TF1* par1 = new TF1("par1","[0]",-1.5,1.5);
-  ((TH1D*)aSlices.At(1))->Fit(par1,"RS");
-  aSlices.At(1)->Draw("E1");
-  CMS_lumi( canvas, iPeriod, iPos );
-  canvas->Update();
-  canvas->RedrawAxis();
-  canvas->GetFrame()->Draw();
-  canvas->SaveAs("MEFF_slice1_"+era+".pdf");
-
-  TF1* par2cosh = new TF1("par2cosh","[0]*sqrt(cosh(x))",-1.5,1.5);
-  ((TH1D*)aSlices.At(2))->Fit(par2cosh,"RS");
-  aSlices.At(2)->Draw("E1");
-  CMS_lumi( canvas, iPeriod, iPos );
-  canvas->Update();
-  canvas->RedrawAxis();
-  canvas->GetFrame()->Draw();
-  canvas->SaveAs("MEFF_slice2_"+era+".pdf");
-
-  aSlices.At(3)->Draw("E1");
-  CMS_lumi( canvas, iPeriod, iPos );
-  canvas->Update();
-  canvas->RedrawAxis();
-  canvas->GetFrame()->Draw();
-  canvas->SaveAs("MEFF_slice3_"+era+".pdf");
 
   return;
 }
